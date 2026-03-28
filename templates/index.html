@@ -909,19 +909,6 @@ function renderChart(data) {
           ctx2.restore();
         }
 
-        // Gradient arrow tại midpoint đường init
-        const mag=Math.sqrt(oc[0]*oc[0]+oc[1]*oc[1]);
-        const gx=oc[0]/mag,gy=oc[1]/mag;
-        const dir=data.obj_type==='max'?1:-1;
-        const aLen=Math.min(xMax,yMax)*0.18;
-        let midX=xMax*0.15, midY=yMax*0.15;
-        if(pZ0.length>=2){midX=(pZ0[0].x+pZ0[1].x)/2; midY=(pZ0[0].y+pZ0[1].y)/2;}
-        const s=toPx(midX,midY), e=toPx(midX+dir*gx*aLen,midY+dir*gy*aLen);
-        drawArrow(s.px,s.py,e.px,e.py,'rgba(255,111,0,0.75)',2.5);
-        ctx2.save();
-        ctx2.fillStyle='rgba(255,111,0,0.9)';ctx2.font='bold 10px Segoe UI,sans-serif';
-        ctx2.fillText(data.obj_type==='max'?'→ tăng z':'→ giảm z', e.px+4, e.py-4);
-        ctx2.restore();
       }
 
       // Vertex labels
@@ -988,11 +975,37 @@ function renderChart(data) {
       ctx2.setLineDash([8, 4]);
       ctx2.stroke();
 
-      // Label z_cur
-      const midPx = (px1 + px2) / 2, midPy = (py1 + py2) / 2;
+      // Label + mũi tên gradient tại điểm giữa đường z_cur
+      const xMid = (xAxis.min + xAxis.max) / 2;
+      const yMid = Math.abs(c2) > 1e-9
+        ? (z_cur - c1 * xMid) / c2
+        : (yAxis.min + yAxis.max) / 2;
+      const pxMid = xAxis.getPixelForValue(xMid);
+      const pyMid = yAxis.getPixelForValue(yMid);
+
       ctx2.fillStyle = `rgba(230,81,0,${opacity})`;
       ctx2.font = '11px Segoe UI,sans-serif';
-      ctx2.fillText(`z = ${z_cur.toFixed(1)}`, midPx + 6, midPy - 6);
+      ctx2.fillText(`z = ${z_cur.toFixed(1)}`, pxMid + 6, pyMid - 6);
+
+      // Mũi tên theo hướng tối ưu (di chuyển cùng đường)
+      const [dx, dy] = ld.direction || [0, 0];
+      const dxPx = dx * 40, dyPx = -dy * 40;  // đảo y vì canvas
+      ctx2.save();
+      ctx2.beginPath();
+      ctx2.moveTo(pxMid, pyMid);
+      ctx2.lineTo(pxMid + dxPx, pyMid + dyPx);
+      ctx2.strokeStyle = `rgba(255,111,0,${opacity})`;
+      ctx2.lineWidth = 2; ctx2.setLineDash([]); ctx2.stroke();
+      const angle = Math.atan2(dyPx, dxPx), headLen = 10;
+      ctx2.beginPath();
+      ctx2.moveTo(pxMid + dxPx, pyMid + dyPx);
+      ctx2.lineTo(pxMid+dxPx - headLen*Math.cos(angle-Math.PI/6), pyMid+dyPx - headLen*Math.sin(angle-Math.PI/6));
+      ctx2.lineTo(pxMid+dxPx - headLen*Math.cos(angle+Math.PI/6), pyMid+dyPx - headLen*Math.sin(angle+Math.PI/6));
+      ctx2.closePath();
+      ctx2.fillStyle = `rgba(255,111,0,${opacity})`; ctx2.fill();
+      ctx2.fillStyle = `rgba(255,111,0,${opacity})`;
+      ctx2.font = '11px sans-serif';
+      ctx2.fillText(ot === 'max' ? '→ tăng z' : '→ giảm z', pxMid + dxPx + 4, pyMid + dyPx - 4);
       ctx2.restore();
 
       // Lên lịch frame tiếp theo

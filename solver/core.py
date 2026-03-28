@@ -470,7 +470,8 @@ def _tinh_chart_data_2d(
 
     # Level lines
     mag_oc = sqrt(sum(cf ** 2 for cf in obj_coeffs[:2]))
-    grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
+    sign = 1.0 if obj_type == "max" else -1.0
+    grad = [sign * obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
     level_lines: Dict = {
         "z_opt":     z_final,
         "coeffs":    obj_coeffs[:2],

@@ -453,7 +453,8 @@ def giai_hinh_hoc(
 
     # ── Level lines ───────────────────────────────────────────────────────
     mag_oc = sqrt(sum(c ** 2 for c in obj_coeffs[:2]))
-    grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
+    sign = 1.0 if obj_type == "max" else -1.0
+    grad = [sign * obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
     level_lines = {
         "z_opt":     best_z,
         "coeffs":    obj_coeffs[:2],
