@@ -232,11 +232,11 @@ input[type=number]:focus{outline:none;border-color:var(--navy);
   border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh)}
 .method-toggle>span{font-size:.75rem;font-weight:700;color:var(--muted);
   text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
-.mtog{padding:6px 16px;border-radius:6px;font-size:.84rem;font-weight:700;
-  cursor:pointer;transition:all .15s;white-space:nowrap}
-.mtog.active{background:var(--navy);color:#fff;border:1px solid var(--navy)}
-.mtog:not(.active){background:#fff;color:var(--navy);border:1px solid var(--navy)}
-.mtog:not(.active):hover{background:var(--navy-xl)}
+.method-btn{padding:8px 20px;border-radius:20px;font-size:.84rem;font-weight:700;
+  cursor:pointer;transition:all .15s;white-space:nowrap;border:2px solid var(--navy)}
+.method-btn.active{background:var(--navy);color:#fff}
+.method-btn:not(.active){background:#fff;color:var(--navy)}
+.method-btn:not(.active):hover{background:var(--navy-xl)}
 
 /* ── FOOTER ── */
 footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
@@ -319,8 +319,8 @@ footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
     <!-- [5] METHOD TOGGLE -->
     <div class="method-toggle">
       <span>Phương pháp giải:</span>
-      <button id="btn-algebraic" class="mtog active" onclick="selectMethod('algebraic')">🔢 Số học (FM)</button>
-      <button id="btn-geometric"  class="mtog"        onclick="selectMethod('geometric')">📐 Hình học</button>
+      <button id="btn-algebraic" class="method-btn active" onclick="selectMethod('algebraic')">🔢 Số học (FM)</button>
+      <button id="btn-geometric"  class="method-btn"        onclick="selectMethod('geometric')">📐 Hình học</button>
     </div>
 
     <!-- [6] SOLVE -->
@@ -1056,7 +1056,7 @@ function renderExport(data) {
       <a class="btn btn-navy" href="/api/export" download="giai_trinh.txt">📄 Tải file TXT</a>
       <button class="btn btn-ghost" onclick="copyJson()">📋 Copy JSON</button>
     </div>
-    <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Preview 20 dòng đầu:</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Preview 25 dòng đầu:</div>
     <div class="exp-preview" id="expPrev">Đang tải...</div>`;
   loadPreview();
 }
@@ -1068,7 +1068,7 @@ async function loadPreview() {
     const el = document.getElementById('expPrev');
     if (!el) return;
     const lines = txt.split('\n');
-    el.textContent = lines.slice(0,20).join('\n') + (lines.length>20?'\n...':'');
+    el.textContent = lines.slice(0,25).join('\n') + (lines.length>25?'\n...':'');
   } catch(e) {
     const el = document.getElementById('expPrev');
     if (el) el.textContent = 'Không thể tải preview.';

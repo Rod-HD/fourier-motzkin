@@ -1,7 +1,11 @@
 """Phương pháp hình học giải bài toán LP 2 biến."""
 
 from itertools import combinations
+from math import atan2, sqrt
 from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+
+from solver.core import dinh_dang_rang_buoc
 from solver.reasoning import ReasoningEngine
 
 
@@ -9,292 +13,242 @@ from solver.reasoning import ReasoningEngine
 # Tiện ích
 # ---------------------------------------------------------------------------
 
-_SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-
-def _sub(s: str) -> str:
-    return s.translate(_SUB)
-
 def _fmt(v: float) -> str:
     if abs(v - round(v)) < 1e-9:
         return str(int(round(v)))
     return f"{v:.4g}"
 
-def _fmt_coef(coef: float, name: str, first: bool = False) -> str:
-    """Định dạng hạng tử cho biểu thức."""
-    if abs(coef) < 1e-12:
-        return ""
-    if abs(coef - 1) < 1e-12:
-        return name if first else f"+ {name}"
-    if abs(coef + 1) < 1e-12:
-        return f"-{name}" if first else f"- {name}"
-    if first:
-        return f"{_fmt(coef)}{name}"
-    if coef > 0:
-        return f"+ {_fmt(coef)}{name}"
-    return f"- {_fmt(abs(coef))}{name}"
 
-def _expr(coeffs: List[float], var_names: List[str]) -> str:
-    """Tạo chuỗi biểu thức từ hệ số."""
-    parts = []
-    for i, c in enumerate(coeffs):
+def _ensure_2(coeffs: List[float]) -> Tuple[float, float]:
+    a = coeffs[0] if len(coeffs) > 0 else 0.0
+    b = coeffs[1] if len(coeffs) > 1 else 0.0
+    return a, b
+
+
+def _obj_str(obj_coeffs: List[float], var_names: List[str]) -> str:
+    parts: List[str] = []
+    for i, c in enumerate(obj_coeffs):
         if i >= len(var_names) or abs(c) < 1e-12:
             continue
-        parts.append(_fmt_coef(c, var_names[i], first=(len(parts) == 0)))
-    return " ".join(parts) if parts else "0"
-
-def _constraint_str(c: Dict, var_names: List[str]) -> str:
-    sense_map = {"<=": "≤", ">=": "≥", "=": "="}
-    return f"{_expr(c['coeffs'], var_names)} {sense_map.get(c['sense'], c['sense'])} {_fmt(c['rhs'])}"
-
-def _eq_str(c: Dict, var_names: List[str]) -> str:
-    """Đường biên (dạng = )."""
-    return f"{_expr(c['coeffs'], var_names)} = {_fmt(c['rhs'])}"
+        nm = var_names[i]
+        if not parts:
+            if abs(c - 1) < 1e-9:
+                parts.append(nm)
+            elif abs(c + 1) < 1e-9:
+                parts.append(f"-{nm}")
+            else:
+                parts.append(f"{_fmt(c)}{nm}")
+        else:
+            if c < 0:
+                parts.append(f"- {_fmt(abs(c))}{nm}")
+            else:
+                parts.append(f"+ {_fmt(c)}{nm}")
+    return " ".join(parts) or "0"
 
 
 # ---------------------------------------------------------------------------
-# Giải hệ 2 phương trình 2 ẩn
+# Giải hệ 2×2
 # ---------------------------------------------------------------------------
 
-def giai_he_2x2(
-    a1: float, b1: float, c1: float,
-    a2: float, b2: float, c2: float
-) -> Optional[Tuple[float, float]]:
-    """Giải a1·x+b1·y=c1, a2·x+b2·y=c2. Trả None nếu vô nghiệm/vô số nghiệm."""
+def giai_he_phuong_trinh(ci: Dict, cj: Dict) -> Optional[Tuple[float, float]]:
+    """Giải hệ 2 phương trình 2 ẩn từ 2 ràng buộc."""
+    a1, b1 = _ensure_2(ci["coeffs"])
+    a2, b2 = _ensure_2(cj["coeffs"])
     det = a1 * b2 - a2 * b1
     if abs(det) < 1e-12:
         return None
-    x = (c1 * b2 - c2 * b1) / det
-    y = (a1 * c2 - a2 * c1) / det
+    x = (ci["rhs"] * b2 - cj["rhs"] * b1) / det
+    y = (a1 * cj["rhs"] - a2 * ci["rhs"]) / det
     return x, y
 
 
-def giai_he_phuong_trinh(
-    constraints: List[Dict],
-    indices: Tuple[int, ...]
-) -> Optional[List[float]]:
-    """Giải hệ n=2 phương trình từ constraints[indices[0]] và constraints[indices[1]]."""
-    if len(indices) != 2:
-        return None
-    i, j = indices
-    ci, cj = constraints[i], constraints[j]
-    n = max(len(ci["coeffs"]), len(cj["coeffs"]))
-    if n < 2:
-        return None
-    a1, b1 = ci["coeffs"][0] if len(ci["coeffs"]) > 0 else 0.0, \
-              ci["coeffs"][1] if len(ci["coeffs"]) > 1 else 0.0
-    a2, b2 = cj["coeffs"][0] if len(cj["coeffs"]) > 0 else 0.0, \
-              cj["coeffs"][1] if len(cj["coeffs"]) > 1 else 0.0
-    sol = giai_he_2x2(a1, b1, ci["rhs"], a2, b2, cj["rhs"])
-    if sol is None:
-        return None
-    return list(sol)
-
-
 # ---------------------------------------------------------------------------
-# Kiểm tra điểm thỏa mãn ràng buộc
+# Kiểm tra điểm
 # ---------------------------------------------------------------------------
 
-def thoa_man(point: List[float], c: Dict, tol: float = 1e-6) -> bool:
-    lhs = sum(c["coeffs"][j] * point[j] for j in range(min(len(c["coeffs"]), len(point))))
-    if c["sense"] == "<=":
+def _thoa_man(point: Tuple[float, float], c: Dict, tol: float = 1e-6) -> bool:
+    a, b = _ensure_2(c["coeffs"])
+    lhs = a * point[0] + b * point[1]
+    s = c["sense"]
+    if s == "<=":
         return lhs <= c["rhs"] + tol
-    if c["sense"] == ">=":
+    if s == ">=":
         return lhs >= c["rhs"] - tol
     return abs(lhs - c["rhs"]) <= tol
 
 
-def kiem_tra_diem(point: List[float], constraints: List[Dict]) -> bool:
-    return all(thoa_man(point, c) for c in constraints)
+def _kiem_tra(point: Tuple[float, float], constraints: List[Dict]) -> bool:
+    return all(_thoa_man(point, c) for c in constraints)
 
 
 # ---------------------------------------------------------------------------
-# Tính các đỉnh miền khả thi
+# Phân loại đường biên
 # ---------------------------------------------------------------------------
 
-def tim_cac_dinh(constraints: List[Dict], n: int) -> List[Dict]:
-    """Duyệt tổ hợp n ràng buộc, giải hệ, lọc đỉnh khả thi.
+def phan_loai_duong_bien(c: Dict, var_names: List[str]) -> Dict[str, Any]:
+    """Phân loại ràng buộc thành case đường biên và tính các trường cần thiết.
 
-    Returns:
-        List[{"point": [x1,...], "feasible": bool, "from_indices": (i,j)}]
+    Returns dict với:
+      case        — "truc" | "doc" | "ngang" | "thuong"
+      mo_ta       — mô tả tiếng Việt
+      duong       — chuỗi phương trình đường
+      diem_ve     — [[x1,y1],[x2,y2]] (None = extend đến giới hạn chart)
+      huong       — "phải"/"trái"/"trên"/"dưới"
+      huong_vec   — [dx,dy] chuẩn hoá
+      huong_mien  — alias huong_vec (frontend compat)
+      coeffs      — [a, b]
+      rhs         — vế phải
+      sense       — sense gốc
+      label       — biểu thức dạng "..."
     """
-    result = []
-    seen = set()
-    for idx_combo in combinations(range(len(constraints)), n):
-        sol = giai_he_phuong_trinh(constraints, idx_combo)
-        if sol is None:
-            continue
-        # Làm tròn để tránh trùng lặp
-        key = tuple(round(v, 6) for v in sol)
-        if key in seen:
-            continue
-        seen.add(key)
-        feasible = kiem_tra_diem(sol, constraints)
-        result.append({
-            "point": sol,
-            "feasible": feasible,
-            "from_indices": idx_combo
-        })
-    return result
+    a, b = _ensure_2(c["coeffs"])
+    rhs  = c["rhs"]
+    sense = c["sense"]
 
+    label_eq = dinh_dang_rang_buoc(
+        {"coeffs": [a, b], "rhs": rhs, "sense": "="}, var_names
+    )
 
-# ---------------------------------------------------------------------------
-# Vẽ đường biên
-# ---------------------------------------------------------------------------
+    za = abs(a) < 1e-12
+    zb = abs(b) < 1e-12
+    zr = abs(rhs) < 1e-12
 
-def ve_duong_bien(constraint: Dict, var_names: List[str], idx: int,
-                  x_max: float = 15.0, y_max: float = 15.0) -> Dict:
-    """Tính 2 điểm để vẽ đường biên và thông tin phụ trợ vẽ chart.
+    def _norm(nx: float, ny: float) -> List[float]:
+        mag = sqrt(nx * nx + ny * ny)
+        return [nx / mag, ny / mag] if mag > 1e-12 else [0.0, 0.0]
 
-    Phân loại:
-      - Đường thẳng đứng  (b ≈ 0): x₁ = rhs/a
-      - Đường nằm ngang   (a ≈ 0): x₂ = rhs/b
-      - Đường tổng quát   (a,b ≠ 0)
-
-    Returns dict gồm:
-      p1, p2       — 2 điểm đầu/cuối đường (đã nằm trong khung nhìn)
-      label        — nhãn biểu thức (=)
-      mo_ta        — mô tả loại đường đặc biệt
-      x2_at_x1_0   — x₂ khi x₁=0 (None nếu không xác định)
-      x1_at_x2_0   — x₁ khi x₂=0 (None nếu không xác định)
-      coeffs       — [a, b]
-      rhs          — vế phải
-      sense        — sense gốc
-      huong_mien   — véc-tơ đơn vị chỉ vào phía miền nghiệm
-    """
-    coeffs = constraint["coeffs"]
-    rhs    = constraint["rhs"]
-    sense  = constraint["sense"]
-    a = coeffs[0] if len(coeffs) > 0 else 0.0
-    b = coeffs[1] if len(coeffs) > 1 else 0.0
-    label = _eq_str(constraint, var_names)
-
-    x2_at_0: Optional[float] = None
-    x1_at_0: Optional[float] = None
-    p1 = None
-    p2 = None
-    mo_ta = ""
-
-    if abs(b) < 1e-12 and abs(a) > 1e-12:
-        # Đường thẳng đứng: x₁ = rhs/a
-        x1_val = abs(rhs / a) if abs(rhs) < 1e-12 else rhs / a  # tránh -0.0
-        p1 = [x1_val, 0.0]
-        p2 = [x1_val, y_max]
-        x1_at_0 = x1_val
-        # Hướng miền nghiệm: nx = -a (<=) hoặc a (>=), chia |a|
-        nx_sign = (-a if sense == "<=" else a)
+    # ── CASE truc: đường đi qua gốc, song song trục ──────────────────────
+    if zb and zr:
+        # x1 = 0 (trục tung)
+        # a*x1 = 0, ví dụ -x1 <= 0 → x1 >= 0 → phía phải
+        nx_sign = -a if sense == "<=" else a
         direction = "phải" if nx_sign > 0 else "trái"
-        mo_ta = (
-            f"Trục tung ({var_names[0]} = 0) — miền nghiệm phía {direction}"
-            if abs(x1_val) < 1e-9
-            else f"Đường thẳng đứng {var_names[0]} = {_fmt(x1_val)}"
-        )
-    elif abs(a) < 1e-12 and abs(b) > 1e-12:
-        # Đường nằm ngang: x₂ = rhs/b
-        x2_val = abs(rhs / b) if abs(rhs) < 1e-12 else rhs / b  # tránh -0.0
-        p1 = [0.0, x2_val]
-        p2 = [x_max, x2_val]
-        x2_at_0 = x2_val
-        ny_sign = (-b if sense == "<=" else b)
+        hv = _norm(1.0 if direction == "phải" else -1.0, 0.0)
+        return {
+            "case": "truc",
+            "mo_ta": f"Trục tung ({var_names[0]} = 0) — miền nghiệm phía {direction}",
+            "duong": f"{var_names[0]} = 0",
+            "diem_ve": [[0.0, 0.0], [0.0, None]],
+            "huong": direction, "huong_vec": hv, "huong_mien": hv,
+            "coeffs": [a, b], "rhs": rhs, "sense": sense, "label": label_eq,
+        }
+
+    if za and zr:
+        # x2 = 0 (trục hoành)
+        ny_sign = -b if sense == "<=" else b
         direction = "trên" if ny_sign > 0 else "dưới"
-        mo_ta = (
-            f"Trục hoành ({var_names[1]} = 0) — miền nghiệm phía {direction}"
-            if abs(x2_val) < 1e-9
-            else f"Đường nằm ngang {var_names[1]} = {_fmt(x2_val)}"
-        )
-    else:
-        # Đường tổng quát — tính 2 giao trục
-        x2_at_0 = rhs / b if abs(b) > 1e-12 else None
-        x1_at_0 = rhs / a if abs(a) > 1e-12 else None
-        p1 = [0.0, x2_at_0] if x2_at_0 is not None else None
-        p2 = [x1_at_0, 0.0] if x1_at_0 is not None else None
+        hv = _norm(0.0, 1.0 if direction == "trên" else -1.0)
+        return {
+            "case": "truc",
+            "mo_ta": f"Trục hoành ({var_names[1]} = 0) — miền nghiệm phía {direction}",
+            "duong": f"{var_names[1]} = 0",
+            "diem_ve": [[0.0, 0.0], [None, 0.0]],
+            "huong": direction, "huong_vec": hv, "huong_mien": hv,
+            "coeffs": [a, b], "rhs": rhs, "sense": sense, "label": label_eq,
+        }
 
-    # Véc-tơ đơn vị hướng vào phía miền nghiệm:
-    #   <= : miền là a·x ≤ rhs → gradient giảm → hướng (-a,-b)
-    #   >= : miền là a·x ≥ rhs → gradient tăng → hướng ( a, b)
-    nx, ny = (a, b) if sense == ">=" else (-a, -b)
-    mag = (nx ** 2 + ny ** 2) ** 0.5
-    nx, ny = (nx / mag, ny / mag) if mag > 1e-12 else (0.0, 0.0)
+    # ── CASE doc: chỉ x1 (b≈0) ───────────────────────────────────────────
+    if zb:
+        x1_val = rhs / a
+        nx_sign = -a if sense == "<=" else a
+        direction = "phải" if nx_sign > 0 else "trái"
+        hv = _norm(1.0 if direction == "phải" else -1.0, 0.0)
+        return {
+            "case": "doc",
+            "mo_ta": f"Đường thẳng đứng {var_names[0]} = {_fmt(x1_val)}",
+            "duong": f"{var_names[0]} = {_fmt(x1_val)}",
+            "diem_ve": [[x1_val, 0.0], [x1_val, None]],
+            "huong": direction, "huong_vec": hv, "huong_mien": hv,
+            "coeffs": [a, b], "rhs": rhs, "sense": sense, "label": label_eq,
+        }
 
+    # ── CASE ngang: chỉ x2 (a≈0) ─────────────────────────────────────────
+    if za:
+        x2_val = rhs / b
+        ny_sign = -b if sense == "<=" else b
+        direction = "trên" if ny_sign > 0 else "dưới"
+        hv = _norm(0.0, 1.0 if direction == "trên" else -1.0)
+        return {
+            "case": "ngang",
+            "mo_ta": f"Đường nằm ngang {var_names[1]} = {_fmt(x2_val)}",
+            "duong": f"{var_names[1]} = {_fmt(x2_val)}",
+            "diem_ve": [[0.0, x2_val], [None, x2_val]],
+            "huong": direction, "huong_vec": hv, "huong_mien": hv,
+            "coeffs": [a, b], "rhs": rhs, "sense": sense, "label": label_eq,
+        }
+
+    # ── CASE thuong: cả 2 hệ số khác 0 ───────────────────────────────────
+    x2_at_0 = rhs / b   # khi x1 = 0
+    x1_at_0 = rhs / a   # khi x2 = 0
+    # Hướng sơ bộ từ sense (sẽ được cập nhật lại theo centroid ở bước 2)
+    nx0, ny0 = (-a, -b) if sense == "<=" else (a, b)
+    hv = _norm(nx0, ny0)
     return {
-        "p1": p1,
-        "p2": p2,
-        "label": label,
-        "mo_ta": mo_ta,
+        "case": "thuong",
+        "mo_ta": label_eq,
+        "duong": label_eq,
+        "diem_ve": [[0.0, x2_at_0], [x1_at_0, 0.0]],
         "x2_at_x1_0": x2_at_0,
         "x1_at_x2_0": x1_at_0,
-        "idx": idx,
-        "coeffs": [a, b],
-        "rhs": rhs,
-        "sense": sense,
-        "huong_mien": [nx, ny]
+        "huong": "", "huong_vec": hv, "huong_mien": hv,
+        "coeffs": [a, b], "rhs": rhs, "sense": sense, "label": label_eq,
     }
 
 
+def tinh_huong_vec(c: Dict, cx: float, cy: float) -> List[float]:
+    """Vector đơn vị chỉ vào phía miền nghiệm (dựa trên centroid)."""
+    a, b = _ensure_2(c["coeffs"])
+    dot = a * cx + b * cy - c["rhs"]
+    nx, ny = (a, b) if dot > 0 else (-a, -b)
+    mag = sqrt(nx * nx + ny * ny)
+    return [nx / mag, ny / mag] if mag > 1e-12 else [0.0, 0.0]
+
+
+def sap_xep_dinh_convex(vertices: List[List[float]]) -> List[List[float]]:
+    """Sắp xếp đỉnh theo thứ tự convex hull (theo góc quanh centroid)."""
+    if len(vertices) < 2:
+        return vertices[:]
+    cx = sum(v[0] for v in vertices) / len(vertices)
+    cy = sum(v[1] for v in vertices) / len(vertices)
+    return sorted(vertices, key=lambda v: atan2(v[1] - cy, v[0] - cx))
+
+
 # ---------------------------------------------------------------------------
-# Chuẩn hoá ràng buộc (chỉ dạng ≤/≥/=, đủ n chiều)
+# Reasoning: giải thích từng bước tính giao điểm
 # ---------------------------------------------------------------------------
 
-def _ensure_n(coeffs: List[float], n: int) -> List[float]:
-    """Đảm bảo coeffs có đúng n phần tử."""
-    r = coeffs[:n]
-    r += [0.0] * (n - len(r))
-    return r
-
-
-def _chuan_hoa(constraints: List[Dict], n: int) -> List[Dict]:
-    """Chuẩn hoá coeffs về đúng độ dài n."""
-    return [
-        {"coeffs": _ensure_n(c["coeffs"], n), "rhs": c["rhs"], "sense": c["sense"]}
-        for c in constraints
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Sinh bước giải thích tính đỉnh bằng Gauss (2×2)
-# ---------------------------------------------------------------------------
-
-def _giai_trinh_dinh(
+def _giai_trinh_giao(
     ci: Dict, cj: Dict,
     i: int, j: int,
-    sol: List[float],
+    sol: Tuple[float, float],
     var_names: List[str],
     label: str
 ) -> Tuple[str, str]:
-    """Sinh chuỗi cong_thuc và ket_qua cho việc giải giao 2 đường."""
-    a1 = ci["coeffs"][0]; b1 = ci["coeffs"][1]; c1 = ci["rhs"]
-    a2 = cj["coeffs"][0]; b2 = cj["coeffs"][1]; c2 = cj["rhs"]
+    a1, b1 = _ensure_2(ci["coeffs"]); r1 = ci["rhs"]
+    a2, b2 = _ensure_2(cj["coeffs"]); r2 = cj["rhs"]
     v1, v2 = var_names[0], var_names[1]
-
-    lines = [
-        f"(d{i+1}): {_fmt(a1)}{v1} + {_fmt(b1)}{v2} = {_fmt(c1)}",
-        f"(d{j+1}): {_fmt(a2)}{v1} + {_fmt(b2)}{v2} = {_fmt(c2)}",
+    ln = [
+        f"(d{i+1}): {_fmt(a1)}{v1} + {_fmt(b1)}{v2} = {_fmt(r1)}",
+        f"(d{j+1}): {_fmt(a2)}{v1} + {_fmt(b2)}{v2} = {_fmt(r2)}",
     ]
-
-    # Cách giải: nhân và trừ để loại x1
-    det = a1 * b2 - a2 * b1
     if abs(a1) > 1e-12 and abs(a2) > 1e-12:
         m = a2 / a1
-        lines.append(f"× ({_fmt(m)}): {_fmt(a2)}{v1} + {_fmt(b1*m)}{v2} = {_fmt(c1*m)}")
-        lines.append(f"Trừ 2 phương trình: {_fmt(b2 - b1*m)}{v2} = {_fmt(c2 - c1*m)}")
-        if abs(b2 - b1*m) > 1e-12:
-            lines.append(f"→ {v2} = {_fmt(c2 - c1*m)}/{_fmt(b2 - b1*m)} = {_fmt(sol[1])}")
-            lines.append(f"→ {v1} = ({_fmt(c1)} - {_fmt(b1)}×{_fmt(sol[1])}) / {_fmt(a1)} = {_fmt(sol[0])}")
-    elif abs(b1) > 1e-12 and abs(b2) > 1e-12:
-        m = b2 / b1
-        lines.append(f"Loại {v2}: {_fmt(a1*m - a2)}{v1} = {_fmt(c1*m - c2)}")
-        if abs(a1*m - a2) > 1e-12:
-            lines.append(f"→ {v1} = {_fmt(sol[0])}")
-            lines.append(f"→ {v2} = {_fmt(sol[1])}")
+        b_diff = b2 - b1 * m
+        r_diff = r2 - r1 * m
+        ln.append(f"(d{i+1})×{_fmt(m)}: {_fmt(a2)}{v1} + {_fmt(b1*m)}{v2} = {_fmt(r1*m)}")
+        if abs(b_diff) > 1e-12:
+            ln.append(f"Trừ → {_fmt(b_diff)}{v2} = {_fmt(r_diff)}")
+            ln.append(f"→ {v2} = {_fmt(sol[1])}")
+            ln.append(f"→ {v1} = ({_fmt(r1)} - {_fmt(b1)}×{_fmt(sol[1])}) / {_fmt(a1)} = {_fmt(sol[0])}")
+        else:
+            ln.append(f"→ {v1} = {_fmt(sol[0])}, {v2} = {_fmt(sol[1])}")
     else:
-        lines.append(f"→ {v1}={_fmt(sol[0])}, {v2}={_fmt(sol[1])}")
-
-    cong_thuc = "\n".join(lines)
-    ket_qua = f"{label}({_fmt(sol[0])}, {_fmt(sol[1])})"
-    return cong_thuc, ket_qua
+        ln.append(f"→ {v1} = {_fmt(sol[0])},  {v2} = {_fmt(sol[1])}")
+    return "\n".join(ln), f"{label}({_fmt(sol[0])}, {_fmt(sol[1])})"
 
 
 # ---------------------------------------------------------------------------
-# Hàm chính: giai_hinh_hoc
+# Hàm chính
 # ---------------------------------------------------------------------------
 
 def giai_hinh_hoc(
@@ -303,10 +257,7 @@ def giai_hinh_hoc(
     obj_coeffs: List[float],
     obj_type: str
 ) -> Dict[str, Any]:
-    """Giải LP 2 biến bằng phương pháp hình học.
-
-    Chỉ hoạt động đầy đủ với n=2 (2D). Với n≠2 trả only_2d=False.
-    """
+    """Giải LP 2 biến bằng phương pháp hình học."""
     engine = ReasoningEngine()
     var_names = [f"x{i+1}" for i in range(n)]
     only_2d = (n == 2)
@@ -318,101 +269,105 @@ def giai_hinh_hoc(
             "feasible": False, "solution": {}, "z": None,
             "obj_type": obj_type, "method": "geometric",
             "steps_constraints": [], "reasoning": engine.to_dict(),
-            "vertices": [], "boundary_lines": [],
-            "var_names": var_names, "n": n, "only_2d": False
+            "vertices": [], "boundary_lines": [], "level_lines": {},
+            "var_names": var_names, "n": n, "only_2d": False,
         }
 
-    cs = _chuan_hoa(constraints, n)
-    obj_str = _expr(obj_coeffs, var_names)
+    obj_str = _obj_str(obj_coeffs, var_names)
+    engine.ghi(
+        "Bắt đầu giải hình học",
+        f"{'max' if obj_type=='max' else 'min'} z = {obj_str}\n"
+        f"Số ràng buộc: {len(constraints)}",
+        "INFO"
+    )
 
-    engine.ghi("Bắt đầu giải hình học",
-               f"Bài toán: {'max' if obj_type=='max' else 'min'} z = {obj_str}\n"
-               f"Số ràng buộc: {len(cs)}", "INFO")
+    # ── Bước 1: Vẽ đường biên ─────────────────────────────────────────────
+    engine.ghi(
+        "Bước 1: Vẽ các đường biên",
+        "Chuyển mỗi ràng buộc thành đường thẳng (cho dấu =)", "INFO"
+    )
 
-    # ── Bước 1: Vẽ đường biên ──────────────────────────────────────────────
-    engine.ghi("Bước 1: Vẽ các đường biên",
-               "Chuyển mỗi ràng buộc thành đường thẳng bằng cách cho từng biến = 0.",
-               "INFO")
+    boundary_lines: List[Dict] = []
+    for i, c in enumerate(constraints):
+        info = phan_loai_duong_bien(c, var_names)
+        info["idx"] = i + 1
+        case = info["case"]
 
-    boundary_lines = []
-    for i, c in enumerate(cs):
-        bd = ve_duong_bien(c, var_names, i)
-        boundary_lines.append(bd)
+        if case in ("truc", "doc", "ngang"):
+            engine.ghi_cong_thuc(
+                f"Đường (d{i+1}): {info['mo_ta']}",
+                info["duong"],
+                f"Miền nghiệm phía {info['huong']}" if info["huong"] else "Xem mô tả"
+            )
+        else:
+            x2_0 = info.get("x2_at_x1_0")
+            x1_0 = info.get("x1_at_x2_0")
+            parts = []
+            if x2_0 is not None:
+                parts.append(f"Cho {var_names[0]}=0 → {var_names[1]}={_fmt(x2_0)}")
+            if x1_0 is not None:
+                parts.append(f"Cho {var_names[1]}=0 → {var_names[0]}={_fmt(x1_0)}")
+            ket = (f"Điểm (0, {_fmt(x2_0)}) và ({_fmt(x1_0)}, 0)"
+                   if x2_0 is not None and x1_0 is not None else "Xem tọa độ")
+            engine.ghi_cong_thuc(
+                f"Đường (d{i+1}): {dinh_dang_rang_buoc(c, var_names)}",
+                "\n".join(parts),
+                ket
+            )
 
-        p1_str = f"(0, {_fmt(bd['x2_at_x1_0'])})" if bd["x2_at_x1_0"] is not None else "không xác định"
-        p2_str = f"({_fmt(bd['x1_at_x2_0'])}, 0)" if bd["x1_at_x2_0"] is not None else "không xác định"
+        boundary_lines.append(info)
 
-        parts = []
-        if bd["x2_at_x1_0"] is not None:
-            parts.append(f"Cho {var_names[0]}=0 → {var_names[1]}={_fmt(bd['x2_at_x1_0'])} → Điểm {p1_str}")
-        if bd["x1_at_x2_0"] is not None:
-            parts.append(f"Cho {var_names[1]}=0 → {var_names[0]}={_fmt(bd['x1_at_x2_0'])} → Điểm {p2_str}")
+    # ── Bước 2: Miền khả thi & đỉnh ──────────────────────────────────────
+    engine.ghi(
+        "Bước 2: Xác định miền khả thi",
+        "Xác định nửa mặt phẳng thỏa mãn từng ràng buộc.", "INFO"
+    )
 
-        cong_thuc_str = " | ".join(parts) if parts else (bd.get("mo_ta") or "Đường song song trục")
-        ket_qua_str   = (
-            bd["mo_ta"] if bd.get("mo_ta") and not parts
-            else f"Điểm {p1_str} và {p2_str}"
-        )
+    smap = {"<=": "≤", ">=": "≥", "=": "="}
+    for i, c in enumerate(constraints):
+        if boundary_lines[i]["case"] != "thuong":
+            continue
+        ok = _thoa_man((0.0, 0.0), c)
+        sn = smap.get(c["sense"], c["sense"])
         engine.ghi_cong_thuc(
-            f"Đường (d{i+1}): {_constraint_str(c, var_names)}",
-            cong_thuc_str,
-            ket_qua_str
-        )
-
-    # ── Bước 2: Miền khả thi & đỉnh ────────────────────────────────────────
-    engine.ghi("Bước 2: Xác định miền khả thi",
-               "Xác định nửa mặt phẳng thỏa mãn từng ràng buộc.", "INFO")
-
-    origin = [0.0, 0.0]
-    for i, c in enumerate(cs):
-        lhs_o = sum(c["coeffs"][j] * origin[j] for j in range(n))
-        ok = thoa_man(origin, c)
-        sense_str = {"<=": "≤", ">=": "≥", "=": "="}.get(c["sense"], c["sense"])
-        engine.ghi_cong_thuc(
-            f"Ràng buộc (d{i+1}): Thay (0,0)",
-            f"{_fmt(lhs_o)} {sense_str} {_fmt(c['rhs'])} → {'✓' if ok else '✗'}",
+            f"Ràng buộc (d{i+1}): thay (0,0)",
+            f"0 {sn} {_fmt(c['rhs'])} → {'✓' if ok else '✗'}",
             f"Miền nghiệm {'chứa' if ok else 'không chứa'} gốc tọa độ"
         )
 
-    # Tính đỉnh
-    all_vertices_raw = tim_cac_dinh(cs, n)
-    feasible_vertices = [v for v in all_vertices_raw if v["feasible"]]
+    # Tính các đỉnh khả thi
+    labels_abc = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    feasible_vertices: List[Dict] = []
+    seen: set = set()
 
-    # Đặt nhãn chữ cái
-    labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-    for idx_v, v in enumerate(feasible_vertices):
-        v["label"] = labels[idx_v] if idx_v < len(labels) else f"P{idx_v}"
+    for (i, j) in combinations(range(len(constraints)), 2):
+        sol = giai_he_phuong_trinh(constraints[i], constraints[j])
+        if sol is None:
+            continue
+        key = (round(sol[0], 6), round(sol[1], 6))
+        if key in seen:
+            continue
+        seen.add(key)
+        if not _kiem_tra(sol, constraints):
+            continue
 
-    engine.ghi("Tính các đỉnh miền khả thi",
-               f"Duyệt C({len(cs)},{n}) = {len(all_vertices_raw)} giao điểm, "
-               f"tìm được {len(feasible_vertices)} đỉnh khả thi.", "INFO")
-
-    for v in all_vertices_raw:
-        i_idx, j_idx = v["from_indices"]
-        ci, cj = cs[i_idx], cs[j_idx]
-        sol = v["point"]
-        lbl = v.get("label", "?") if v["feasible"] else "✗"
-
-        if v["feasible"] and len(sol) >= 2:
-            cong_thuc, ket_qua = _giai_trinh_dinh(
-                ci, cj, i_idx, j_idx, sol, var_names, lbl
-            )
-        else:
-            cong_thuc = (
-                f"(d{i_idx+1}): {_eq_str(ci, var_names)}\n"
-                f"(d{j_idx+1}): {_eq_str(cj, var_names)}"
-            )
-            ket_qua = (
-                f"({_fmt(sol[0])}, {_fmt(sol[1])}) — ngoài miền khả thi"
-                if len(sol) >= 2 else "Vô nghiệm"
-            )
-
-        engine.ghi_cong_thuc(
-            f"{'Đỉnh ' + lbl if v['feasible'] else 'Giao điểm ngoài miền'}: "
-            f"(d{i_idx+1}) ∩ (d{j_idx+1})",
-            cong_thuc,
-            ket_qua
+        lbl = (labels_abc[len(feasible_vertices)]
+               if len(feasible_vertices) < len(labels_abc)
+               else f"P{len(feasible_vertices)}")
+        cf_str, kr_str = _giai_trinh_giao(
+            constraints[i], constraints[j], i, j, sol, var_names, lbl
         )
+        engine.ghi_cong_thuc(
+            f"Đỉnh {lbl}: Giao của (d{i+1}) và (d{j+1})",
+            cf_str, kr_str
+        )
+        feasible_vertices.append({
+            "point": [round(sol[0], 6), round(sol[1], 6)],
+            "label": lbl,
+            "feasible": True,
+            "is_optimal": False,
+            "from_indices": (i, j),
+        })
 
     if not feasible_vertices:
         engine.ghi("Kết luận", "Miền khả thi rỗng — bài toán vô nghiệm.", "KET_LUAN")
@@ -420,112 +375,108 @@ def giai_hinh_hoc(
             "feasible": False, "solution": {}, "z": None,
             "obj_type": obj_type, "method": "geometric",
             "steps_constraints": [], "reasoning": engine.to_dict(),
-            "vertices": [], "boundary_lines": boundary_lines,
-            "var_names": var_names, "n": n, "only_2d": True
+            "vertices": [], "boundary_lines": boundary_lines, "level_lines": {},
+            "var_names": var_names, "n": n, "only_2d": True,
         }
 
-    # ── Bước 3: Tính z tại các đỉnh ────────────────────────────────────────
-    engine.ghi("Bước 3: Tính z tại các đỉnh",
-               "Theo Định lý điểm cực biên, z tối ưu nằm tại 1 đỉnh của miền khả thi.",
-               "INFO")
+    # Cập nhật huong_mien theo centroid thực tế
+    cx_f = sum(v["point"][0] for v in feasible_vertices) / len(feasible_vertices)
+    cy_f = sum(v["point"][1] for v in feasible_vertices) / len(feasible_vertices)
+    for i, c in enumerate(constraints):
+        hv = tinh_huong_vec(c, cx_f, cy_f)
+        boundary_lines[i]["huong_vec"]  = hv
+        boundary_lines[i]["huong_mien"] = hv
 
-    best_z = None
-    best_vertex = None
-
-    z_vals = []
-    for v in feasible_vertices:
-        pt = v["point"]
-        z_val = sum(obj_coeffs[j] * pt[j] for j in range(min(n, len(obj_coeffs))))
-        z_vals.append(z_val)
-
-        is_best_so_far = (
-            best_z is None or
-            (obj_type == "max" and z_val > best_z + 1e-9) or
-            (obj_type == "min" and z_val < best_z - 1e-9)
-        )
-        if is_best_so_far:
-            best_z = z_val
-            best_vertex = v
-
-    # Sau khi duyệt xong mới biết best → ghi reasoning
-    for v, z_val in zip(feasible_vertices, z_vals):
-        pt = v["point"]
-        lbl = v["label"]
-        is_opt = (v is best_vertex)
-
-        # Tính từng hạng: c1×x1 + c2×x2 = ...
-        terms = " + ".join(
-            f"{_fmt(obj_coeffs[j])}×{_fmt(pt[j])}"
-            for j in range(min(n, len(obj_coeffs)))
-        )
-        cong_thuc = f"z = {obj_str.replace('x1', _fmt(pt[0])).replace('x2', _fmt(pt[1]))} = {terms} = {_fmt(z_val)}"
-
-        engine.ghi_cong_thuc(
-            f"Tại đỉnh {lbl}({_fmt(pt[0])}, {_fmt(pt[1])})",
-            cong_thuc,
-            f"z = {_fmt(z_val)}" + (" ← TỐI ƯU" if is_opt else "")
-        )
-
-    # ── Bước 4: Đường mức ───────────────────────────────────────────────────
-    direction = "Tịnh tiến ra xa gốc tọa độ (tăng z)" if obj_type == "max" \
-                else "Tịnh tiến về phía gốc tọa độ (giảm z)"
-    touch_word = "cuối cùng" if obj_type == "max" else "đầu tiên"
     engine.ghi(
-        "Bước 4: Kiểm tra bằng đường mức",
-        f"Vẽ đường mức z = {obj_str}. {direction}. "
-        f"Điểm {touch_word} đường mức chạm miền khả thi là điểm tối ưu.",
-        "INFO"
-    )
-
-    opt_lbl = best_vertex["label"]
-    opt_pt  = best_vertex["point"]
-    engine.ghi(
-        "Kết luận",
-        f"Điểm tối ưu: {opt_lbl}({_fmt(opt_pt[0])}, {_fmt(opt_pt[1])})\n"
-        f"z* = {_fmt(best_z)}",
+        "Miền khả thi",
+        f"Tìm được {len(feasible_vertices)} đỉnh: " +
+        ", ".join(
+            f"{v['label']}({_fmt(v['point'][0])},{_fmt(v['point'][1])})"
+            for v in feasible_vertices
+        ),
         "KET_LUAN"
     )
 
-    # ── Kết quả ────────────────────────────────────────────────────────────
-    solution = {var_names[i]: round(opt_pt[i], 6) for i in range(n)}
-    z_rounded = round(best_z, 6)
+    # ── Bước 3: Tính z tại các đỉnh ──────────────────────────────────────
+    engine.ghi(
+        "Bước 3: Tính z tại các đỉnh",
+        "Theo Định lý điểm cực biên, z tối ưu nằm tại 1 đỉnh của miền khả thi.",
+        "INFO"
+    )
 
-    vertices_out = []
-    for v, z_val in zip(feasible_vertices, z_vals):
+    best_z: Optional[float] = None
+    best_idx = 0
+    z_vals: List[float] = []
+
+    for v in feasible_vertices:
         pt = v["point"]
-        lbl = v["label"]
-        vertices_out.append({
-            "point": [round(pt[0], 6), round(pt[1], 6)],
-            "z": round(z_val, 6),
-            "feasible": True,
-            "is_optimal": (v is best_vertex),
-            "label": f"{lbl}({_fmt(pt[0])},{_fmt(pt[1])})"
-        })
+        z = sum(obj_coeffs[k] * pt[k] for k in range(min(n, len(obj_coeffs))))
+        z_vals.append(z)
+        is_best = (best_z is None
+                   or (obj_type == "max" and z > best_z + 1e-9)
+                   or (obj_type == "min" and z < best_z - 1e-9))
+        if is_best:
+            best_z = z
+            best_idx = len(z_vals) - 1
 
-    # steps_constraints giữ format cũ (để frontend dùng chung)
-    steps_constraints = [
-        {
-            "buoc": 0,
-            "tieu_de": "Hệ ràng buộc ban đầu",
-            "constraints": [_constraint_str(c, var_names) for c in cs],
-            "bi_loai": [],
-            "moi_tao": []
-        }
-    ]
+    # Ghi reasoning và đánh dấu optimal
+    for idx_v, (v, z) in enumerate(zip(feasible_vertices, z_vals)):
+        pt  = v["point"]
+        lbl = v["label"]
+        is_opt = (idx_v == best_idx)
+        terms = " + ".join(
+            f"{_fmt(obj_coeffs[k])}×{_fmt(pt[k])}"
+            for k in range(min(n, len(obj_coeffs)))
+        )
+        engine.ghi_cong_thuc(
+            f"Tại đỉnh {lbl}({_fmt(pt[0])}, {_fmt(pt[1])})",
+            f"z = {terms} = {_fmt(z)}",
+            f"z = {_fmt(z)}" + (" ← TỐI ƯU" if is_opt else "")
+        )
+        v["z"] = round(z, 6)
+        v["is_optimal"] = is_opt
+        v["label"] = f"{lbl}({_fmt(pt[0])},{_fmt(pt[1])})"
+
+    # ── Bước 4: Đường mức ─────────────────────────────────────────────────
+    opt_v = feasible_vertices[best_idx]
+    huong_str   = "ra xa gốc tọa độ" if obj_type == "max" else "về gốc tọa độ"
+    tinh_str    = "cuối cùng" if obj_type == "max" else "đầu tiên"
+    engine.ghi(
+        "Bước 4: Kiểm tra bằng đường mức",
+        f"Vẽ đường mức z = {obj_str} = 0.\n"
+        f"Tịnh tiến đường mức {huong_str} "
+        f"(hướng {'tăng' if obj_type=='max' else 'giảm'} z).\n"
+        f"Điểm {tinh_str} đường mức chạm miền khả thi là điểm tối ưu.\n"
+        f"→ Điểm tối ưu: {opt_v['label']} với z = {_fmt(best_z)}",
+        "KET_LUAN"
+    )
+
+    # ── Level lines ───────────────────────────────────────────────────────
+    mag_oc = sqrt(sum(c ** 2 for c in obj_coeffs[:2]))
+    grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
+    level_lines = {
+        "z0":       {"z": 0.0,     "coeffs": obj_coeffs},
+        "zopt":     {"z": best_z,  "coeffs": obj_coeffs},
+        "direction": grad,
+        "obj_type": obj_type,
+    }
+
+    solution = {var_names[i]: opt_v["point"][i] for i in range(n)}
 
     return {
         "feasible": True,
         "solution": solution,
-        "z": z_rounded,
+        "z": round(best_z, 6),
         "obj_type": obj_type,
         "method": "geometric",
-        "steps_constraints": steps_constraints,
+        "steps_constraints": [],
         "reasoning": engine.to_dict(),
-        "vertices": vertices_out,
+        "vertices": feasible_vertices,
         "boundary_lines": boundary_lines,
+        "level_lines": level_lines,
         "var_names": var_names,
         "n": n,
-        "only_2d": True
+        "only_2d": True,
     }
 
 
@@ -534,104 +485,134 @@ def giai_hinh_hoc(
 # ---------------------------------------------------------------------------
 
 def xuat_file_hinh_hoc(result: Dict[str, Any], bai_toan_info: Dict[str, Any]) -> str:
-    """Tạo nội dung file txt theo format tài liệu."""
+    """Xuất kết quả bài toán hình học ra chuỗi txt theo format tài liệu."""
     n          = result.get("n", 2)
     var_names  = result.get("var_names", [f"x{i+1}" for i in range(n)])
     obj_type   = result.get("obj_type", "max")
     obj_coeffs = bai_toan_info.get("obj_coeffs", [])
     cs_raw     = bai_toan_info.get("constraints", [])
-    cs         = _chuan_hoa(cs_raw, n) if cs_raw else []
+    obj_str    = _obj_str(obj_coeffs, var_names) if obj_coeffs else "?"
+    smap       = {"<=": "≤", ">=": "≥", "=": "="}
+    lines: List[str] = []
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    sense_map  = {"<=": "≤", ">=": "≥", "=": "="}
-
-    obj_str = _expr(obj_coeffs, var_names)
-    lines   = []
-
-    # Header
+    # ── Header ────────────────────────────────────────────────────────────
+    W = 51
     lines += [
-        "═" * 51,
+        "═" * W,
         "BÀI TOÁN QUY HOẠCH TUYẾN TÍNH",
         "Phương pháp: Hình học",
-        "═" * 51,
-        f"Mục tiêu: {'max' if obj_type=='max' else 'min'} z = {obj_str}",
-        "Ràng buộc:"
+        f"Ngày: {now}",
+        "═" * W,
+        f"Hàm mục tiêu: {'max' if obj_type=='max' else 'min'} z = {obj_str}",
+        "Ràng buộc:",
     ]
-    for c in cs:
-        lines.append(f"  {_constraint_str(c, var_names)}")
+    for i, c in enumerate(cs_raw):
+        fmt_c = dinh_dang_rang_buoc(c, var_names) if obj_coeffs else str(c)
+        lines.append(f"  ({i+1}) {fmt_c}")
     lines.append("")
 
-    # Bước 1
-    lines += [
-        "BƯỚC 1: VẼ CÁC ĐƯỜNG BIÊN",
-        "─" * 35,
-    ]
-    for i, c in enumerate(cs):
-        bd = ve_duong_bien(c, var_names, i)
-        lines.append(f"Đường (d{i+1}): {_eq_str(c, var_names)}")
-        if bd["x2_at_x1_0"] is not None:
-            lines.append(f"  Cho {var_names[0]}=0 → {var_names[1]}={_fmt(bd['x2_at_x1_0'])} → Điểm (0, {_fmt(bd['x2_at_x1_0'])})")
-        if bd["x1_at_x2_0"] is not None:
-            lines.append(f"  Cho {var_names[1]}=0 → {var_names[0]}={_fmt(bd['x1_at_x2_0'])} → Điểm ({_fmt(bd['x1_at_x2_0'])}, 0)")
+    # ── Bước 1 ────────────────────────────────────────────────────────────
+    bls = result.get("boundary_lines", [])
+    lines += ["BƯỚC 1: VẼ CÁC ĐƯỜNG BIÊN", "─" * 35]
+    for bl in bls:
+        idx  = bl.get("idx", "?")
+        case = bl.get("case", "thuong")
+        lbl  = bl.get("label", "")
+        lines.append(f"Đường (d{idx}): {lbl}")
+        if case in ("truc", "doc", "ngang"):
+            lines.append(f"  {bl.get('mo_ta', '')}")
+            if bl.get("huong"):
+                lines.append(f"  Miền nghiệm phía {bl['huong']}")
+        else:
+            dv = bl.get("diem_ve") or []
+            if len(dv) == 2 and dv[0] is not None and dv[1] is not None:
+                x2_0, x1_0 = dv[0][1], dv[1][0]
+                if x2_0 is not None:
+                    lines.append(f"  Cho {var_names[0]}=0 → {var_names[1]}={_fmt(x2_0)} → Điểm (0, {_fmt(x2_0)})")
+                if x1_0 is not None:
+                    lines.append(f"  Cho {var_names[1]}=0 → {var_names[0]}={_fmt(x1_0)} → Điểm ({_fmt(x1_0)}, 0)")
     lines.append("")
 
-    # Bước 2
-    lines += [
-        "BƯỚC 2: XÁC ĐỊNH MIỀN KHẢ THI",
-        "─" * 35,
-    ]
-    origin = [0.0] * n
-    for i, c in enumerate(cs):
-        lhs_o = sum(c["coeffs"][j] * origin[j] for j in range(n))
-        ok    = thoa_man(origin, c)
-        sn    = sense_map.get(c["sense"], c["sense"])
-        lines.append(f"Ràng buộc (d{i+1}): Thay (0,0): {_fmt(lhs_o)} {sn} {_fmt(c['rhs'])} {'✓' if ok else '✗'}")
+    # ── Bước 2 ────────────────────────────────────────────────────────────
+    lines += ["BƯỚC 2: XÁC ĐỊNH MIỀN KHẢ THI", "─" * 35]
+    for bl in bls:
+        if bl.get("case") != "thuong":
+            continue
+        idx = bl.get("idx", "?")
+        a_b = bl.get("coeffs", [0, 0])
+        rhs = bl.get("rhs", 0)
+        sn  = smap.get(bl.get("sense", "<="), "≤")
+        ok  = (0.0 <= rhs) if bl.get("sense") == "<=" else (0.0 >= rhs)
+        lines.append(f"Ràng buộc (d{idx}): Thay (0,0): 0 {sn} {_fmt(rhs)} {'✓' if ok else '✗'}")
         lines.append(f"  → Miền nghiệm {'chứa' if ok else 'không chứa'} gốc tọa độ")
 
+    verts = [v for v in result.get("vertices", []) if v.get("feasible")]
     lines.append("")
     lines.append("Các đỉnh miền khả thi:")
-
-    fv = [v for v in result.get("vertices", [])]
-    for v in fv:
-        lines.append(f"  Đỉnh {v['label']}")
-
+    for v in verts:
+        lines.append(f"  Đỉnh {v.get('label', '?')}")
+    lines.append(
+        f"Miền khả thi: đa giác {{{', '.join(v.get('label','?') for v in verts)}}}"
+    )
     lines.append("")
 
-    # Bước 3
-    lines += [
-        "BƯỚC 3: TÍNH z TẠI CÁC ĐỈNH",
-        "─" * 35,
-    ]
-    opt_z = result.get("z")
-    for v in fv:
-        pt    = v["point"]
-        z_val = v["z"]
-        lbl   = v["label"]
-        terms = " + ".join(
-            f"{_fmt(obj_coeffs[j])}×{_fmt(pt[j])}"
-            for j in range(min(n, len(obj_coeffs)))
-        )
-        suffix = "  ← TỐI ƯU" if v.get("is_optimal") else ""
-        lines.append(f"  Đỉnh {lbl}: z = {terms} = {_fmt(z_val)}{suffix}")
+    # ── Bước 3: Bảng ─────────────────────────────────────────────────────
+    lines += ["BƯỚC 3: TÍNH z TẠI CÁC ĐỈNH", "─" * 35]
+    cw = [10, 12, 28, 12]
+    sep  = "┌" + "┬".join("─" * w for w in cw) + "┐"
+    hdr  = "│" + "│".join(h.center(w) for h, w in zip(
+        ["Đỉnh", "Tọa độ", "Tính toán", "z"], cw)) + "│"
+    mid  = "├" + "┼".join("─" * w for w in cw) + "┤"
+    bot  = "└" + "┴".join("─" * w for w in cw) + "┘"
+    lines += [sep, hdr, mid]
 
+    for v in verts:
+        pt    = v.get("point", [0, 0])
+        lbl   = v.get("label", "?")
+        z     = v.get("z", 0.0)
+        is_op = v.get("is_optimal", False)
+        star  = "★ " if is_op else "  "
+        coord = f"({_fmt(pt[0])}, {_fmt(pt[1])})"
+        if obj_coeffs and len(obj_coeffs) >= 2:
+            calc = " + ".join(
+                f"{_fmt(obj_coeffs[k])}({_fmt(pt[k])})"
+                for k in range(min(n, len(obj_coeffs)))
+            ) + f" = {_fmt(z)}"
+        else:
+            calc = _fmt(z)
+        z_tag = _fmt(z) + (" MIN" if is_op and obj_type=="min"
+                           else " MAX" if is_op else "")
+        row = "│" + "│".join(
+            s[:w].center(w) for s, w in zip(
+                [star + lbl, coord, calc, z_tag], cw)
+        ) + "│"
+        lines.append(row)
+    lines.append(bot)
     lines.append("")
 
-    # Bước 4
-    direction  = "Tịnh tiến ra xa gốc tọa độ (tăng z)" if obj_type == "max" \
-                 else "Tịnh tiến về phía gốc tọa độ (giảm z)"
-    touch_word = "cuối cùng" if obj_type == "max" else "đầu tiên"
+    # ── Bước 4 ────────────────────────────────────────────────────────────
+    huong_str = "ra xa gốc tọa độ" if obj_type == "max" else "về gốc tọa độ"
+    tinh_str  = "cuối cùng" if obj_type == "max" else "đầu tiên"
     lines += [
-        "BƯỚC 4: KIỂM TRA ĐƯỜNG MỨC",
-        "─" * 35,
+        "BƯỚC 4: KIỂM TRA ĐƯỜNG MỨC", "─" * 35,
         f"Vẽ đường mức z = {obj_str}.",
-        f"{direction}.",
-        f"Điểm {touch_word} đường mức chạm miền khả thi là điểm tối ưu.",
-        ""
+        f"Tịnh tiến đường mức {huong_str} "
+        f"(hướng {'tăng' if obj_type=='max' else 'giảm'} z).",
+        f"Điểm {tinh_str} đường mức chạm miền khả thi là điểm tối ưu.",
+        "",
     ]
 
-    # Kết quả
-    lines += ["KẾT QUẢ", "═" * 51]
-    sol = result.get("solution", {})
-    sol_str = ", ".join(f"{k} = {_fmt(v)}" for k, v in sol.items())
-    lines.append(f"{sol_str}, z = {_fmt(opt_z)}")
+    # ── Kết quả ───────────────────────────────────────────────────────────
+    sol      = result.get("solution", {})
+    best_z   = result.get("z")
+    sol_line = ", ".join(f"{k} = {_fmt(v)}" for k, v in sol.items())
+    lines += [
+        "═" * W,
+        "KẾT QUẢ TỐI ƯU",
+        "═" * W,
+        sol_line,
+        f"z  = {_fmt(best_z)}  ({'MIN' if obj_type=='min' else 'MAX'})",
+    ]
 
     return "\n".join(lines)
