@@ -756,17 +756,16 @@ function renderChart(data) {
   const xMax = Math.max(...allX, 1) * 1.3;
   const yMax = Math.max(...allY, 1) * 1.3;
 
+  // ── Polygon data cho plugin và legend ───────────────────────────────────
+  const feasPts = verts.filter(v => v.feasible).map(v => v.point);
+
   const datasets = [];
 
-  // ── 1. Polygon fill (phải là dataset đầu tiên — nằm dưới cùng) ──────────
-  const fReg = verts.filter(v => v.feasible).map(v => ({x:v.point[0],y:v.point[1]}));
-  if (fReg.length >= 3) {
-    const poly = sortByAngle(fReg); poly.push({...poly[0]});
-    datasets.push({ type:'line', label:'Miền nghiệm', data:poly,
-      fill:true, backgroundColor:'rgba(25,118,210,0.15)',
-      borderColor:'rgba(25,118,210,0.4)', borderWidth:1,
-      borderDash:[], pointRadius:0, tension:0, order:10 });
-  }
+  // Dataset giả để legend hiển thị "Miền nghiệm"
+  datasets.push({ type:'line', label:'Miền nghiệm', data:[],
+    backgroundColor:'rgba(25,118,210,0.18)',
+    borderColor:'rgba(25,118,210,0.5)', borderWidth:2,
+    pointRadius:0 });
 
   // ── 2. Constraint / boundary lines ──────────────────────────────────────
   const lineSrc = (isGeo && data.boundary_lines && data.boundary_lines.length)
@@ -823,9 +822,34 @@ function renderChart(data) {
       backgroundColor:'#1976D2', borderColor:'#FFD600',
       borderWidth:3, pointRadius:8, pointHoverRadius:10, order:1 });
 
-  // ── 5. Combined plugin ───────────────────────────────────────────────────
-  const cx = fReg.length ? fReg.reduce((s,p)=>s+p.x,0)/fReg.length : xMax/2;
-  const cy = fReg.length ? fReg.reduce((s,p)=>s+p.y,0)/fReg.length : yMax/2;
+  // ── 5. Plugins ───────────────────────────────────────────────────────────
+  const cx = feasPts.length ? feasPts.reduce((s,p)=>s+p[0],0)/feasPts.length : xMax/2;
+  const cy = feasPts.length ? feasPts.reduce((s,p)=>s+p[1],0)/feasPts.length : yMax/2;
+
+  // Plugin vẽ polygon miền nghiệm trực tiếp trên canvas (beforeDatasetsDraw)
+  const feasibleRegionPlugin = {
+    id: 'feasibleRegion',
+    beforeDatasetsDraw(chart) {
+      if (feasPts.length < 3) return;
+      const xs = chart.scales.x, ys = chart.scales.y;
+      const sorted = [...feasPts].sort((a,b) =>
+        Math.atan2(a[1]-cy, a[0]-cx) - Math.atan2(b[1]-cy, b[0]-cx));
+      const ctx2 = chart.ctx;
+      ctx2.save();
+      ctx2.beginPath();
+      ctx2.moveTo(xs.getPixelForValue(sorted[0][0]), ys.getPixelForValue(sorted[0][1]));
+      for (let i=1; i<sorted.length; i++)
+        ctx2.lineTo(xs.getPixelForValue(sorted[i][0]), ys.getPixelForValue(sorted[i][1]));
+      ctx2.closePath();
+      ctx2.fillStyle = 'rgba(25,118,210,0.18)';
+      ctx2.fill();
+      ctx2.strokeStyle = 'rgba(25,118,210,0.5)';
+      ctx2.lineWidth = 2;
+      ctx2.setLineDash([]);
+      ctx2.stroke();
+      ctx2.restore();
+    }
+  };
 
   const chartPlugin = {
     id: 'chartExtras',
@@ -859,7 +883,7 @@ function renderChart(data) {
           let nx=0,ny=0;
           if(bl.huong_mien){[nx,ny]=bl.huong_mien;}
           else {
-            const dot=(cx-mx)*a1+(cy-my)*a2;
+            const dot=(cx-mx)*a1+(cy-my)*a2;  // cx/cy từ feasPts
             const mag=Math.sqrt(a1*a1+a2*a2);
             if(mag>1e-12){nx=(dot>0?-a1:a1)/mag; ny=(dot>0?-a2:a2)/mag;}
           }
@@ -907,7 +931,7 @@ function renderChart(data) {
 
   chartInst = new Chart(canvas, {
     type:'scatter', data:{datasets},
-    plugins:[chartPlugin],
+    plugins:[feasibleRegionPlugin, chartPlugin],
     options:{
       responsive:true, animation:{duration:350},
       plugins:{
