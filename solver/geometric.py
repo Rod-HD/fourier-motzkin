@@ -141,33 +141,92 @@ def tim_cac_dinh(constraints: List[Dict], n: int) -> List[Dict]:
 # Vẽ đường biên
 # ---------------------------------------------------------------------------
 
-def ve_duong_bien(constraint: Dict, var_names: List[str], idx: int) -> Dict:
-    """Tính 2 điểm để vẽ đường biên (x₁=0 và x₂=0).
+def ve_duong_bien(constraint: Dict, var_names: List[str], idx: int,
+                  x_max: float = 15.0, y_max: float = 15.0) -> Dict:
+    """Tính 2 điểm để vẽ đường biên và thông tin phụ trợ vẽ chart.
 
-    Returns:
-        {"p1": [0, x2], "p2": [x1, 0], "label": "...", "x2_at_0": ..., "x1_at_0": ...}
+    Phân loại:
+      - Đường thẳng đứng  (b ≈ 0): x₁ = rhs/a
+      - Đường nằm ngang   (a ≈ 0): x₂ = rhs/b
+      - Đường tổng quát   (a,b ≠ 0)
+
+    Returns dict gồm:
+      p1, p2       — 2 điểm đầu/cuối đường (đã nằm trong khung nhìn)
+      label        — nhãn biểu thức (=)
+      mo_ta        — mô tả loại đường đặc biệt
+      x2_at_x1_0   — x₂ khi x₁=0 (None nếu không xác định)
+      x1_at_x2_0   — x₁ khi x₂=0 (None nếu không xác định)
+      coeffs       — [a, b]
+      rhs          — vế phải
+      sense        — sense gốc
+      huong_mien   — véc-tơ đơn vị chỉ vào phía miền nghiệm
     """
     coeffs = constraint["coeffs"]
-    rhs = constraint["rhs"]
+    rhs    = constraint["rhs"]
+    sense  = constraint["sense"]
     a = coeffs[0] if len(coeffs) > 0 else 0.0
     b = coeffs[1] if len(coeffs) > 1 else 0.0
-    label = f"{_eq_str(constraint, var_names)}"
+    label = _eq_str(constraint, var_names)
 
-    # Cho x1=0 → b·x2 = rhs → x2 = rhs/b
-    x2_at_0 = (rhs / b) if abs(b) > 1e-12 else None
-    # Cho x2=0 → a·x1 = rhs → x1 = rhs/a
-    x1_at_0 = (rhs / a) if abs(a) > 1e-12 else None
+    x2_at_0: Optional[float] = None
+    x1_at_0: Optional[float] = None
+    p1 = None
+    p2 = None
+    mo_ta = ""
 
-    p1 = [0.0, x2_at_0] if x2_at_0 is not None else None
-    p2 = [x1_at_0, 0.0] if x1_at_0 is not None else None
+    if abs(b) < 1e-12 and abs(a) > 1e-12:
+        # Đường thẳng đứng: x₁ = rhs/a
+        x1_val = abs(rhs / a) if abs(rhs) < 1e-12 else rhs / a  # tránh -0.0
+        p1 = [x1_val, 0.0]
+        p2 = [x1_val, y_max]
+        x1_at_0 = x1_val
+        # Hướng miền nghiệm: nx = -a (<=) hoặc a (>=), chia |a|
+        nx_sign = (-a if sense == "<=" else a)
+        direction = "phải" if nx_sign > 0 else "trái"
+        mo_ta = (
+            f"Trục tung ({var_names[0]} = 0) — miền nghiệm phía {direction}"
+            if abs(x1_val) < 1e-9
+            else f"Đường thẳng đứng {var_names[0]} = {_fmt(x1_val)}"
+        )
+    elif abs(a) < 1e-12 and abs(b) > 1e-12:
+        # Đường nằm ngang: x₂ = rhs/b
+        x2_val = abs(rhs / b) if abs(rhs) < 1e-12 else rhs / b  # tránh -0.0
+        p1 = [0.0, x2_val]
+        p2 = [x_max, x2_val]
+        x2_at_0 = x2_val
+        ny_sign = (-b if sense == "<=" else b)
+        direction = "trên" if ny_sign > 0 else "dưới"
+        mo_ta = (
+            f"Trục hoành ({var_names[1]} = 0) — miền nghiệm phía {direction}"
+            if abs(x2_val) < 1e-9
+            else f"Đường nằm ngang {var_names[1]} = {_fmt(x2_val)}"
+        )
+    else:
+        # Đường tổng quát — tính 2 giao trục
+        x2_at_0 = rhs / b if abs(b) > 1e-12 else None
+        x1_at_0 = rhs / a if abs(a) > 1e-12 else None
+        p1 = [0.0, x2_at_0] if x2_at_0 is not None else None
+        p2 = [x1_at_0, 0.0] if x1_at_0 is not None else None
+
+    # Véc-tơ đơn vị hướng vào phía miền nghiệm:
+    #   <= : miền là a·x ≤ rhs → gradient giảm → hướng (-a,-b)
+    #   >= : miền là a·x ≥ rhs → gradient tăng → hướng ( a, b)
+    nx, ny = (a, b) if sense == ">=" else (-a, -b)
+    mag = (nx ** 2 + ny ** 2) ** 0.5
+    nx, ny = (nx / mag, ny / mag) if mag > 1e-12 else (0.0, 0.0)
 
     return {
         "p1": p1,
         "p2": p2,
         "label": label,
+        "mo_ta": mo_ta,
         "x2_at_x1_0": x2_at_0,
         "x1_at_x2_0": x1_at_0,
-        "idx": idx
+        "idx": idx,
+        "coeffs": [a, b],
+        "rhs": rhs,
+        "sense": sense,
+        "huong_mien": [nx, ny]
     }
 
 
@@ -289,10 +348,15 @@ def giai_hinh_hoc(
         if bd["x1_at_x2_0"] is not None:
             parts.append(f"Cho {var_names[1]}=0 → {var_names[0]}={_fmt(bd['x1_at_x2_0'])} → Điểm {p2_str}")
 
+        cong_thuc_str = " | ".join(parts) if parts else (bd.get("mo_ta") or "Đường song song trục")
+        ket_qua_str   = (
+            bd["mo_ta"] if bd.get("mo_ta") and not parts
+            else f"Điểm {p1_str} và {p2_str}"
+        )
         engine.ghi_cong_thuc(
             f"Đường (d{i+1}): {_constraint_str(c, var_names)}",
-            " | ".join(parts) if parts else "Đường song song trục",
-            f"Điểm {p1_str} và {p2_str}"
+            cong_thuc_str,
+            ket_qua_str
         )
 
     # ── Bước 2: Miền khả thi & đỉnh ────────────────────────────────────────

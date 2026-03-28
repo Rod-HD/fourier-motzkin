@@ -216,6 +216,16 @@ input[type=number]:focus{outline:none;border-color:var(--navy);
   font-size:.84rem;pointer-events:none;opacity:0;transition:opacity .3s;z-index:999}
 .toast.show{opacity:1}
 
+/* ── PULSE ANIMATION ── */
+@keyframes pulse{
+  0%  {transform:translate(-50%,-50%) scale(1);   opacity:1}
+  50% {transform:translate(-50%,-50%) scale(1.9); opacity:0.25}
+  100%{transform:translate(-50%,-50%) scale(1);   opacity:1}
+}
+.pulse-marker{position:absolute;width:22px;height:22px;border-radius:50%;
+  border:3px solid #FFD600;pointer-events:none;
+  animation:pulse 1.5s ease-in-out infinite}
+
 /* ── METHOD TOGGLE ── */
 .method-toggle{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   margin-bottom:12px;padding:11px 16px;background:var(--surf);
@@ -517,12 +527,13 @@ function addRow(coeffs, sense, rhs) {
 function loadExample() {
   N = 2;
   document.getElementById('nInput').value = 2;
-  setObjType('max');
+  setObjType('min');
   renderForm(2);
   const oi = document.querySelectorAll('.o-inp');
-  oi[0].value = 3; oi[1].value = 2;
+  oi[0].value = -1; oi[1].value = -2;
   document.getElementById('cList').innerHTML = '';
-  addRow([1,1],'<=',4); addRow([2,1],'<=',6);
+  addRow([2,1],'<=',6); addRow([1,1],'>=',2);
+  addRow([-1,1],'>=',3);
   addRow([-1,0],'<=',0); addRow([0,-1],'<=',0);
   document.getElementById('nnCheck').checked = false;
   previewObjective();
@@ -722,120 +733,214 @@ function renderChart(data) {
     pane.innerHTML = `<div class="chart-notice">
       📊 ${isGeo
         ? 'Phương pháp hình học chỉ vẽ được với <strong>2 biến</strong>.<br>Kết quả vẫn được tính theo phương pháp hình học.'
-        : `Biểu đồ chỉ hỗ trợ bài toán <strong>2 biến</strong> (n = 2).<br>Bài toán này có <strong>n = ${data ? data.n : '?'}</strong> biến.`}
+        : `Biểu đồ chỉ hỗ trợ bài toán <strong>2 biến</strong> (n=2).<br>Bài toán này có <strong>n=${data?data.n:'?'}</strong> biến.`}
     </div>`;
     return;
   }
 
   if (chartInst) { chartInst.destroy(); chartInst = null; }
   const wrap = document.createElement('div');
-  wrap.id = 'chartWrap';
+  wrap.id = 'chartWrap'; wrap.style.position = 'relative';
   const canvas = document.createElement('canvas');
   wrap.appendChild(canvas); pane.appendChild(wrap);
 
-  const isGeo = data.method === 'geometric';
+  const isGeo  = data.method === 'geometric';
   const verts  = data.vertices || [];
-  const feasPts  = verts.filter(v => v.feasible && !v.is_optimal).map(v => ({x:v.point[0],y:v.point[1],z:v.z,lbl:v.label||''}));
-  const infPts   = verts.filter(v => !v.feasible).map(v => ({x:v.point[0],y:v.point[1]}));
-  const optVerts = verts.filter(v => v.is_optimal);
-  const optPt    = optVerts.length ? {x:optVerts[0].point[0],y:optVerts[0].point[1],z:optVerts[0].z,lbl:optVerts[0].label||''} : null;
+  const feasNO = verts.filter(v => v.feasible && !v.is_optimal);
+  const optArr = verts.filter(v => v.is_optimal);
+  const infArr = verts.filter(v => !v.feasible);
+  const optV   = optArr.length ? optArr[0] : null;
 
-  const allX = verts.map(v=>v.point[0]), allY = verts.map(v=>v.point[1]);
+  const allX = verts.map(v => v.point[0]).concat([0]);
+  const allY = verts.map(v => v.point[1]).concat([0]);
   const xMax = Math.max(...allX, 1) * 1.3;
   const yMax = Math.max(...allY, 1) * 1.3;
 
   const datasets = [];
 
-  // Feasible region fill
-  const fReg = verts.filter(v=>v.feasible).map(v=>({x:v.point[0],y:v.point[1]}));
+  // ── 1. Polygon fill (phải là dataset đầu tiên — nằm dưới cùng) ──────────
+  const fReg = verts.filter(v => v.feasible).map(v => ({x:v.point[0],y:v.point[1]}));
   if (fReg.length >= 3) {
     const poly = sortByAngle(fReg); poly.push({...poly[0]});
     datasets.push({ type:'line', label:'Miền nghiệm', data:poly,
-      fill:true, backgroundColor:'rgba(26,35,126,0.07)',
-      borderColor:'rgba(26,35,126,0.2)', borderWidth:1,
-      pointRadius:0, tension:0, order:10 });
+      fill:true, backgroundColor:'rgba(25,118,210,0.15)',
+      borderColor:'rgba(25,118,210,0.4)', borderWidth:1,
+      borderDash:[], pointRadius:0, tension:0, order:10 });
   }
 
-  if (isGeo && data.boundary_lines && data.boundary_lines.length) {
-    // Geometric: draw boundary_lines from p1/p2
-    data.boundary_lines.forEach((bl, i) => {
-      if (!bl.p1 || !bl.p2) return;
-      datasets.push({ type:'line', label:bl.label||`d${i+1}`, data:[{x:bl.p1[0],y:bl.p1[1]},{x:bl.p2[0],y:bl.p2[1]}],
-        borderColor: CLRS[i % CLRS.length], borderWidth:1.5,
-        borderDash:[5,4], pointRadius:0, fill:false, tension:0, order:9 });
-    });
-  } else {
-    // Algebraic: draw constraint lines via clip algorithm
-    (lastPayload ? lastPayload.constraints : []).forEach((c, i) => {
-      if (c.coeffs[0] === 0 && c.coeffs[1] === 0) return;
-      const pts = lineClip(c.coeffs[0], c.coeffs[1], c.rhs, xMax, yMax);
-      if (pts.length < 2) return;
-      datasets.push({ type:'line', label:fmtCLabel(c), data:pts,
-        borderColor: CLRS[i % CLRS.length], borderWidth:1.5,
-        borderDash:[5,4], pointRadius:0, fill:false, tension:0, order:9 });
-    });
+  // ── 2. Constraint / boundary lines ──────────────────────────────────────
+  const lineSrc = (isGeo && data.boundary_lines && data.boundary_lines.length)
+    ? data.boundary_lines.map(bl => ({coeffs:bl.coeffs||[0,0], rhs:bl.rhs??0, _lbl:bl.label}))
+    : (lastPayload ? lastPayload.constraints.map(c => ({...c, _lbl:null})) : []);
+
+  lineSrc.forEach((c, i) => {
+    const [a1, a2] = c.coeffs;
+    if (Math.abs(a1) < 1e-12 && Math.abs(a2) < 1e-12) return;
+    const pts = lineClip(a1, a2, c.rhs, xMax, yMax);
+    if (pts.length < 2) return;
+    datasets.push({ type:'line', label:c._lbl||fmtCLabel(c), data:pts,
+      borderColor:CLRS[i%CLRS.length], borderWidth:1.5,
+      borderDash:[5,4], pointRadius:0, fill:false, tension:0, order:9 });
+  });
+
+  // ── 3. Level lines ───────────────────────────────────────────────────────
+  const oc = lastPayload ? lastPayload.obj_coeffs : null;
+  const zRef = (oc && data.z != null) ? data.z / 3 : null;
+  if (oc && (Math.abs(oc[0])>1e-12 || Math.abs(oc[1])>1e-12)) {
+    // Đường mức khởi đầu z_ref = z*/3 (faint orange)
+    if (zRef != null) {
+      const pZR = lineClip(oc[0], oc[1], zRef, xMax, yMax);
+      if (pZR.length >= 2)
+        datasets.push({ type:'line', label:`z = ${+zRef.toFixed(4)} (khởi đầu)`, data:pZR,
+          borderColor:'rgba(255,111,0,0.35)', borderWidth:1.5, borderDash:[6,4],
+          pointRadius:0, fill:false, tension:0, order:8 });
+    }
+    // Đường mức tối ưu z* (cam đậm)
+    if (optV && data.z != null) {
+      const pZS = lineClip(oc[0], oc[1], data.z, xMax, yMax);
+      if (pZS.length >= 2)
+        datasets.push({ type:'line', label:`z = ${data.z} (tối ưu)`, data:pZS,
+          borderColor:'#FF6F00', borderWidth:2.5, borderDash:[8,4],
+          pointRadius:0, fill:false, tension:0, order:7 });
+    }
   }
 
-  // Infeasible vertices (algebraic only)
-  if (!isGeo && infPts.length) datasets.push({ type:'scatter', label:'Đỉnh không khả thi',
-    data:infPts, backgroundColor:'rgba(130,130,130,0.55)', pointRadius:5, order:3 });
+  // ── 4. Vertices ──────────────────────────────────────────────────────────
+  if (!isGeo && infArr.length)
+    datasets.push({ type:'scatter', label:'Đỉnh không khả thi',
+      data:infArr.map(v=>({x:v.point[0],y:v.point[1]})),
+      backgroundColor:'rgba(130,130,130,0.55)', pointRadius:5, order:3 });
 
-  // Feasible vertices
-  if (feasPts.length) datasets.push({ type:'scatter', label:'Đỉnh khả thi',
-    data:feasPts, backgroundColor:'rgba(26,35,126,0.75)', pointRadius:7, order:2 });
+  if (feasNO.length)
+    datasets.push({ type:'scatter', label:'Đỉnh khả thi',
+      data:feasNO.map(v=>({x:v.point[0],y:v.point[1],z:v.z,lbl:v.label||''})),
+      backgroundColor:'#1976D2', borderColor:'#1976D2',
+      pointRadius:6, pointHoverRadius:8, order:2 });
 
-  // Optimal
-  if (optPt) datasets.push({ type:'scatter', label:`★ Tối ưu (z=${data.z})`,
-    data:[optPt], backgroundColor:'#ffd600', borderColor:'#e65100',
-    borderWidth:2, pointRadius:14, pointStyle:'star', order:1 });
+  if (optV)
+    datasets.push({ type:'scatter', label:`★ Tối ưu (z=${data.z})`,
+      data:[{x:optV.point[0],y:optV.point[1],z:optV.z,lbl:'★ '+(optV.label||'')}],
+      backgroundColor:'#1976D2', borderColor:'#FFD600',
+      borderWidth:3, pointRadius:8, pointHoverRadius:10, order:1 });
 
-  // Plugin to draw vertex labels (geometric mode)
-  const labelPlugin = isGeo ? {
-    id:'vertexLabels',
-    afterDatasetsDraw(chart) {
+  // ── 5. Combined plugin ───────────────────────────────────────────────────
+  const cx = fReg.length ? fReg.reduce((s,p)=>s+p.x,0)/fReg.length : xMax/2;
+  const cy = fReg.length ? fReg.reduce((s,p)=>s+p.y,0)/fReg.length : yMax/2;
+
+  const chartPlugin = {
+    id: 'chartExtras',
+    afterDraw(chart) {
       const ctx2 = chart.ctx;
+      const xs = chart.scales.x, ys = chart.scales.y;
+      const toPx = (wx, wy) => ({px:xs.getPixelForValue(wx), py:ys.getPixelForValue(wy)});
+
+      const drawArrow = (x1,y1,x2,y2,color,lw) => {
+        const dx=x2-x1,dy=y2-y1,len=Math.sqrt(dx*dx+dy*dy);
+        if(len<2) return;
+        const ux=dx/len,uy=dy/len,hs=9;
+        ctx2.save();
+        ctx2.strokeStyle=color; ctx2.fillStyle=color; ctx2.lineWidth=lw;
+        ctx2.beginPath(); ctx2.moveTo(x1,y1); ctx2.lineTo(x2,y2); ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(x2,y2);
+        ctx2.lineTo(x2-hs*ux+hs*0.4*uy, y2-hs*uy-hs*0.4*ux);
+        ctx2.lineTo(x2-hs*ux-hs*0.4*uy, y2-hs*uy+hs*0.4*ux);
+        ctx2.closePath(); ctx2.fill(); ctx2.restore();
+      };
+
+      // Boundary arrows (geometric)
+      if (isGeo && data.boundary_lines) {
+        data.boundary_lines.forEach((bl,i) => {
+          const [a1,a2] = bl.coeffs||[0,0];
+          if(Math.abs(a1)<1e-12 && Math.abs(a2)<1e-12) return;
+          const pts = lineClip(a1,a2,bl.rhs??0,xMax,yMax);
+          if(pts.length<2) return;
+          const mx=(pts[0].x+pts[1].x)/2, my=(pts[0].y+pts[1].y)/2;
+          let nx=0,ny=0;
+          if(bl.huong_mien){[nx,ny]=bl.huong_mien;}
+          else {
+            const dot=(cx-mx)*a1+(cy-my)*a2;
+            const mag=Math.sqrt(a1*a1+a2*a2);
+            if(mag>1e-12){nx=(dot>0?-a1:a1)/mag; ny=(dot>0?-a2:a2)/mag;}
+          }
+          const aLen=0.35;
+          const s=toPx(mx,my), e=toPx(mx+nx*aLen,my+ny*aLen);
+          drawArrow(s.px,s.py,e.px,e.py,CLRS[i%CLRS.length],1.5);
+        });
+      }
+
+      // Objective gradient arrow — đặt tại midpoint đường mức z_ref
+      if(oc && (Math.abs(oc[0])>1e-12||Math.abs(oc[1])>1e-12)) {
+        const mag=Math.sqrt(oc[0]*oc[0]+oc[1]*oc[1]);
+        const gx=oc[0]/mag,gy=oc[1]/mag;
+        const dir=data.obj_type==='max'?1:-1;
+        const aLen=Math.min(xMax,yMax)*0.18;
+        // Tìm midpoint của đường z_ref
+        let midX=xMax*0.15, midY=yMax*0.15;
+        if(zRef!=null) {
+          const pZR=lineClip(oc[0],oc[1],zRef,xMax,yMax);
+          if(pZR.length>=2){midX=(pZR[0].x+pZR[1].x)/2; midY=(pZR[0].y+pZR[1].y)/2;}
+        }
+        const s=toPx(midX,midY), e=toPx(midX+dir*gx*aLen,midY+dir*gy*aLen);
+        drawArrow(s.px,s.py,e.px,e.py,'rgba(255,111,0,0.75)',2.5);
+        ctx2.save();
+        ctx2.fillStyle='rgba(255,111,0,0.9)';ctx2.font='bold 10px Segoe UI,sans-serif';
+        ctx2.fillText(data.obj_type==='max'?'→ tăng z':'→ giảm z', e.px+4, e.py-4);
+        ctx2.restore();
+      }
+
+      // Vertex labels
       ctx2.save();
-      ctx2.font = 'bold 11px Segoe UI,sans-serif';
-      ctx2.textAlign = 'left'; ctx2.textBaseline = 'bottom';
-      verts.filter(v=>v.feasible).forEach(v => {
-        const meta = chart.getDatasetMeta(chart.data.datasets.findIndex(d=>d.label==='Đỉnh khả thi'));
-        const optMeta = chart.getDatasetMeta(chart.data.datasets.findIndex(d=>d.label && d.label.startsWith('★')));
-        const lbl = v.label || '';
-        if (!lbl) return;
-        // find pixel coords from scales
-        const xScale = chart.scales.x, yScale = chart.scales.y;
-        const px = xScale.getPixelForValue(v.point[0]);
-        const py = yScale.getPixelForValue(v.point[1]);
-        ctx2.fillStyle = v.is_optimal ? '#e65100' : '#1a237e';
-        ctx2.fillText(lbl, px + 6, py - 4);
+      ctx2.font='bold 11px Segoe UI,sans-serif';
+      verts.filter(v=>v.feasible).forEach(v=>{
+        const raw=v.label||'';
+        if(!raw) return;
+        const lbl=v.is_optimal?'★ '+raw:raw;
+        const {px,py}=toPx(v.point[0],v.point[1]);
+        ctx2.fillStyle=v.is_optimal?'#E65100':'#0D47A1';
+        ctx2.textAlign='left'; ctx2.textBaseline='bottom';
+        ctx2.fillText(lbl,px+6,py-4);
       });
       ctx2.restore();
     }
-  } : null;
+  };
 
   chartInst = new Chart(canvas, {
     type:'scatter', data:{datasets},
-    plugins: labelPlugin ? [labelPlugin] : [],
+    plugins:[chartPlugin],
     options:{
       responsive:true, animation:{duration:350},
       plugins:{
-        legend:{ position:'top', labels:{ font:{size:11}, boxWidth:16 } },
-        tooltip:{ callbacks:{ label(ctx){
-          const p = ctx.raw;
-          if (!p || p.x == null) return '';
-          let s = p.lbl ? `${p.lbl}  (${fmt(p.x)}, ${fmt(p.y)})` : `(${fmt(p.x)}, ${fmt(p.y)})`;
-          if (p.z != null) s += `  →  z = ${fmt(p.z)}`;
+        legend:{position:'top',labels:{font:{size:11},boxWidth:16}},
+        tooltip:{callbacks:{label(ctx){
+          const p=ctx.raw;
+          if(!p||p.x==null) return '';
+          let s=p.lbl?`${p.lbl}  (${fmt(p.x)}, ${fmt(p.y)})`:
+                       `(${fmt(p.x)}, ${fmt(p.y)})`;
+          if(p.z!=null) s+=`  →  z = ${fmt(p.z)}`;
           return s;
         }}}
       },
       scales:{
-        x:{ title:{display:true,text:'x₁'}, min:0, max:Math.ceil(xMax),
-            grid:{color:'#eef0fb'} },
-        y:{ title:{display:true,text:'x₂'}, min:0, max:Math.ceil(yMax),
-            grid:{color:'#eef0fb'} }
+        x:{title:{display:true,text:'x₁'},min:0,max:Math.ceil(xMax),grid:{color:'#eef0fb'}},
+        y:{title:{display:true,text:'x₂'},min:0,max:Math.ceil(yMax),grid:{color:'#eef0fb'}}
       }
     }
   });
+
+  // ── 6. Pulse marker on optimal ───────────────────────────────────────────
+  if (optV) {
+    setTimeout(() => {
+      if (!chartInst) return;
+      const xs2=chartInst.scales.x, ys2=chartInst.scales.y;
+      const px2=xs2.getPixelForValue(optV.point[0]);
+      const py2=ys2.getPixelForValue(optV.point[1]);
+      const m=document.createElement('div');
+      m.className='pulse-marker';
+      m.style.left=px2+'px'; m.style.top=py2+'px';
+      wrap.appendChild(m);
+    }, 420);
+  }
 }
 
 function fmt(v) { return Number.isInteger(v) ? v : +v.toFixed(4); }
