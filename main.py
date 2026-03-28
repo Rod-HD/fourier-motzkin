@@ -7,6 +7,7 @@ from typing import Any, Dict
 from flask import Flask, Response, jsonify, render_template, request, session
 
 from solver.core import giai_bai_toan
+from solver.geometric import giai_hinh_hoc, xuat_file_hinh_hoc
 
 app = Flask(__name__)
 app.secret_key = "fm_solver_secret_2024"
@@ -47,7 +48,13 @@ def solve() -> Response:
             if len(c["coeffs"]) != n:
                 return jsonify({"error": "Số hệ số ràng buộc phải bằng số biến"}), 400
 
-        result = giai_bai_toan(n, constraints, obj_coeffs, obj_type)
+        method: str = data.get("method", "algebraic").lower()
+
+        if method == "geometric":
+            result = giai_hinh_hoc(n, constraints, obj_coeffs, obj_type)
+        else:
+            method = "algebraic"
+            result = giai_bai_toan(n, constraints, obj_coeffs, obj_type)
 
         # Lưu vào session để export
         session["last_result"] = result
@@ -57,6 +64,7 @@ def solve() -> Response:
             "obj_coeffs": obj_coeffs,
             "obj_type": obj_type
         }
+        session["last_method"] = method
 
         return jsonify(result)
 
@@ -75,9 +83,19 @@ def export() -> Response:
     """
     result = session.get("last_result")
     inp = session.get("last_input")
+    method = session.get("last_method", "algebraic")
 
     if not result or not inp:
         return jsonify({"error": "Chưa có kết quả để xuất. Hãy giải bài toán trước."}), 400
+
+    if method == "geometric":
+        content = xuat_file_hinh_hoc(result, inp)
+        buf = io.BytesIO(content.encode("utf-8"))
+        return Response(
+            buf.getvalue(),
+            mimetype="text/plain; charset=utf-8",
+            headers={"Content-Disposition": "attachment; filename=giai_trinh_hinh_hoc.txt"}
+        )
 
     lines = []
     sep = "=" * 60
