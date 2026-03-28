@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FM Solver</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── RESET ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1a237e;--navy-d:#0d1757;--navy-l:#3949ab;--navy-xl:#e8eaf6;
+  --green:#2e7d32;--green-l:#e8f5e9;--red:#c62828;--red-l:#fce4ec;
+  --amber:#e65100;--amber-l:#fff3e0;--purple:#6a1b9a;--purple-l:#f3e5f5;
+  --bg:#f0f2f8;--surf:#fff;--border:#dde1ec;
+  --txt:#1c1e2a;--muted:#6b7280;
+  --r:8px;--sh:0 2px 8px rgba(0,0,0,.10);
+}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);font-size:14px;line-height:1.55}
+
+/* ── LAYOUT ── */
+.page{max-width:960px;margin:0 auto;padding:0 16px 56px}
+
+/* ── HEADER ── */
+.hdr{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-l) 100%);color:#fff;
+  padding:20px 0;margin-bottom:20px;box-shadow:0 3px 14px rgba(26,35,126,.4)}
+.hdr h1{font-size:1.45rem;font-weight:700;letter-spacing:-.02em}
+.hdr p{font-size:.82rem;opacity:.8;margin-top:3px}
+
+/* ── CARD ── */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--sh);margin-bottom:12px}
+.card-hd{background:#f6f7fb;border-bottom:1px solid var(--border);padding:9px 16px;
+  font-weight:700;font-size:.78rem;color:var(--navy);text-transform:uppercase;letter-spacing:.06em}
+.card-bd{padding:14px 16px}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  background:var(--surf);border:1px solid var(--border);border-radius:var(--r);
+  padding:11px 16px;margin-bottom:12px;box-shadow:var(--sh)}
+.tb-grp{display:flex;align-items:center;gap:6px}
+.tb-sep{width:1px;height:26px;background:var(--border)}
+.lbl{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.05em;white-space:nowrap}
+
+/* ── INPUTS ── */
+input[type=number]{border:1px solid var(--border);border-radius:6px;
+  padding:5px 8px;font-size:.9rem;color:var(--txt);background:#fff;
+  transition:border-color .15s}
+input[type=number]:focus{outline:none;border-color:var(--navy);
+  box-shadow:0 0 0 3px rgba(26,35,126,.14)}
+.n-inp{width:72px}
+
+/* ── TOGGLE MAX/MIN ── */
+.tog-wrap{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.tog{padding:5px 14px;border:none;background:#f6f7fb;font-size:.83rem;font-weight:700;
+  cursor:pointer;color:var(--muted);transition:all .15s}
+.tog.on{background:var(--navy);color:#fff}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;
+  border:none;border-radius:6px;font-size:.83rem;font-weight:700;cursor:pointer;
+  transition:all .15s;white-space:nowrap}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:var(--navy-d)}
+.btn-ghost{background:#fff;color:var(--txt);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg)}
+.btn-green{background:#1b5e20;color:#fff}.btn-green:hover{background:#145214}
+.btn-sm{padding:4px 10px;font-size:.78rem}
+
+/* ── SOLVE BUTTON ── */
+#solveBtn{width:100%;height:48px;background:var(--navy);color:#fff;border:none;
+  border-radius:var(--r);font-size:1rem;font-weight:700;cursor:pointer;
+  letter-spacing:.04em;display:flex;align-items:center;justify-content:center;gap:8px;
+  margin-bottom:20px;box-shadow:0 3px 12px rgba(26,35,126,.35);transition:background .15s}
+#solveBtn:hover{background:var(--navy-d)}
+#solveBtn:disabled{opacity:.55;cursor:not-allowed}
+
+/* ── SPINNER ── */
+.spin{width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ── OBJECTIVE ROW ── */
+.obj-row{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:9px}
+.obj-term{display:flex;align-items:center;gap:3px}
+.obj-sign{color:var(--muted);font-size:.9rem;padding:0 2px}
+.obj-prev{font-family:'Courier New',monospace;font-size:.9rem;color:var(--navy);
+  font-weight:600;padding:6px 12px;background:var(--navy-xl);border-radius:6px;
+  border-left:3px solid var(--navy);min-height:32px;word-break:break-all}
+
+/* ── CONSTRAINT ROW ── */
+.c-row{display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+  padding:8px 10px;margin-bottom:6px;background:#fafbfe;
+  border:1px solid var(--border);border-radius:6px;transition:border-color .15s}
+.c-row:hover{border-color:#b0bae0}
+.coeffs-sec{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cg{display:flex;align-items:center;gap:3px}
+.c-inp{width:64px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+  font-size:13px;text-align:center;transition:border-color .15s}
+.c-inp:focus{outline:none;border-color:var(--navy)}
+.vlbl{font-size:.8rem;font-weight:700;color:var(--muted);white-space:nowrap}
+.sense-sel{padding:4px 5px;border:1px solid var(--border);border-radius:5px;
+  font-size:.88rem;font-weight:700;color:var(--navy);background:#fff;cursor:pointer}
+.rhs-inp{width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:5px;
+  font-size:13px;text-align:center}
+.rhs-inp:focus{outline:none;border-color:var(--navy)}
+.rm-btn{width:24px;height:24px;border-radius:50%;border:none;background:#fee2e2;
+  color:#dc2626;font-size:16px;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:background .15s;flex-shrink:0;line-height:1}
+.rm-btn:hover{background:#fecaca}
+.add-row{display:flex;align-items:center;gap:5px;background:none;
+  border:1.5px dashed var(--navy-l);color:var(--navy);border-radius:6px;
+  padding:6px 12px;font-size:.83rem;font-weight:700;cursor:pointer;
+  width:100%;justify-content:center;margin:4px 0 8px;transition:background .15s}
+.add-row:hover{background:var(--navy-xl)}
+.non-neg{display:flex;align-items:center;gap:7px;font-size:.83rem;color:var(--muted);cursor:pointer;margin-top:4px}
+.non-neg input{cursor:pointer;accent-color:var(--navy)}
+
+/* ── ALERT ── */
+.alert{padding:11px 14px;border-radius:var(--r);font-size:.87rem;
+  display:flex;align-items:flex-start;gap:9px;margin-bottom:12px}
+.alert-ok{background:var(--green-l);border:1px solid #a5d6a7;color:#1b5e20}
+.alert-err{background:var(--red-l);border:1px solid #f48fb1;color:#8e0000}
+.alert-icon{font-size:1.05rem;flex-shrink:0;margin-top:1px}
+
+/* ── SOLUTION CHIPS ── */
+.sol-grid{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.sol-chip{display:flex;flex-direction:column;align-items:center;
+  background:var(--navy-xl);border:1px solid #9fa8da;border-radius:8px;
+  padding:7px 14px;min-width:72px}
+.sc-lbl{font-size:.68rem;font-weight:700;color:var(--navy-l);text-transform:uppercase}
+.sc-val{font-size:1.2rem;font-weight:700;color:var(--navy)}
+.sol-chip.zopt{background:#fff8e1;border-color:#ffcc02}
+.sol-chip.zopt .sc-lbl{color:#e65100}
+.sol-chip.zopt .sc-val{font-size:1.4rem;color:#bf360c}
+
+/* ── RESULT FADE-IN ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeUp .35s ease}
+
+/* ── TABS ── */
+.tab-bar{display:flex;border-bottom:2px solid var(--border);overflow-x:auto;gap:0}
+.tab-btn{padding:10px 16px;border:none;background:none;font-size:.85rem;font-weight:700;
+  cursor:pointer;color:var(--muted);border-bottom:3px solid transparent;
+  margin-bottom:-2px;white-space:nowrap;transition:color .15s}
+.tab-btn:hover{color:var(--navy)}
+.tab-btn.on{color:var(--navy);border-bottom-color:var(--navy)}
+.tab-pane{display:none;padding:16px;background:var(--surf);
+  border:1px solid var(--border);border-top:none;
+  border-radius:0 0 var(--r) var(--r)}
+.tab-pane.on{display:block}
+
+/* ── ACCORDION ── */
+.acc{border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.acc-hd{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;background:#f6f7fb;cursor:pointer;
+  font-weight:600;font-size:.86rem;user-select:none;transition:background .15s}
+.acc-hd:hover{background:var(--navy-xl)}
+.acc.open>.acc-hd{background:var(--navy-xl);color:var(--navy)}
+.acc-num{background:var(--navy);color:#fff;font-size:.7rem;
+  padding:2px 8px;border-radius:12px;margin-right:8px}
+.acc-chev{transition:transform .25s;font-style:normal;font-size:.85rem}
+.acc.open>.acc-hd .acc-chev{transform:rotate(180deg)}
+.acc-bd{display:none;padding:11px 14px;border-top:1px solid var(--border)}
+.acc.open>.acc-bd{display:block}
+.cs{padding:3px 7px;font-family:'Courier New',monospace;font-size:.84rem;
+  border-radius:4px;margin-bottom:3px}
+.cs.norm{color:var(--txt)}
+.cs.gone{color:#9e9e9e;text-decoration:line-through;background:#f5f5f5}
+.cs.newb{color:#1b5e20;background:var(--green-l);border-left:3px solid #66bb6a;padding-left:9px}
+.cs.newb::before{content:'★ '}
+.feas-ok{display:flex;align-items:center;gap:7px;font-weight:700;color:var(--green);font-size:.9rem}
+.feas-no{display:flex;align-items:center;gap:7px;font-weight:700;color:var(--red);font-size:.9rem}
+
+/* ── CHART ── */
+#chartWrap{position:relative}
+.chart-notice{text-align:center;padding:52px 20px;color:var(--muted);
+  font-size:.95rem;background:#f6f7fb;border-radius:var(--r)}
+
+/* ── REASONING ── */
+.rf-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.rf{padding:4px 12px;border-radius:14px;font-size:.76rem;font-weight:700;
+  border:1px solid var(--border);background:#fff;cursor:pointer;transition:all .15s}
+.rf.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.rs{border-left:4px solid var(--border);padding:9px 12px;margin-bottom:7px;
+  border-radius:0 var(--r) var(--r) 0;background:#fafbfe;
+  border-top:1px solid var(--border);border-right:1px solid var(--border);
+  border-bottom:1px solid var(--border)}
+.rs.INFO{border-left-color:#5c6bc0;background:#f5f6ff}
+.rs.TINH_TOAN{border-left-color:var(--purple);background:var(--purple-l)}
+.rs.KET_LUAN{border-left-color:var(--green);background:var(--green-l)}
+.rs.CANH_BAO{border-left-color:var(--amber);background:var(--amber-l)}
+.rs-hd{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.rs-ico{font-size:.95rem}
+.rs-tag{font-size:.67rem;font-weight:800;padding:1px 7px;border-radius:10px;text-transform:uppercase}
+.rs-tag.INFO{background:#e8eaf6;color:#3949ab}
+.rs-tag.TINH_TOAN{background:#f3e5f5;color:var(--purple)}
+.rs-tag.KET_LUAN{background:var(--green-l);color:var(--green)}
+.rs-tag.CANH_BAO{background:var(--amber-l);color:var(--amber)}
+.rs-ttl{font-weight:700;font-size:.87rem}
+.rs-num{margin-left:auto;font-size:.7rem;color:#9ca3af}
+.rs-body{font-size:.81rem;color:var(--muted);white-space:pre-wrap;margin-top:2px}
+.rs-code{font-family:'Courier New',monospace;font-size:.8rem;background:#f0f2f5;
+  padding:5px 9px;border-radius:4px;margin-top:5px;word-break:break-all}
+.rs-res{font-size:.84rem;font-weight:700;color:#1b5e20;margin-top:4px}
+
+/* ── EXPORT ── */
+.exp-btns{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.exp-preview{background:#f4f5f7;border:1px solid var(--border);border-radius:6px;
+  padding:12px 14px;font-family:'Courier New',monospace;font-size:.76rem;color:var(--txt);
+  white-space:pre;overflow-x:auto;max-height:240px;overflow-y:auto;line-height:1.6}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#323232;color:#fff;padding:10px 22px;border-radius:20px;
+  font-size:.84rem;pointer-events:none;opacity:0;transition:opacity .3s;z-index:999}
+.toast.show{opacity:1}
+
+/* ── FOOTER ── */
+footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
+  border-top:1px solid var(--border);margin-top:20px}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#f0f2f8}
+::-webkit-scrollbar-thumb{background:#c4cad8;border-radius:3px}
+
+/* ── RESPONSIVE ── */
+@media(max-width:600px){
+  .hdr h1{font-size:1.15rem}.hdr p{display:none}
+  .tab-btn{padding:8px 10px;font-size:.78rem}
+  .sol-chip{min-width:58px;padding:5px 10px}
+  .tb-sep{display:none}
+  #solveBtn{font-size:.9rem}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="page" style="padding-top:0;padding-bottom:0;margin-bottom:0">
+    <h1>Fourier–Motzkin LP Solver</h1>
+    <p>Giải bài toán quy hoạch tuyến tính — giải trình từng bước chi tiết</p>
+  </div>
+</header>
+
+<div class="page">
+
+  <!-- ══ INPUT SECTION ══ -->
+  <section id="inputSec">
+
+    <!-- [2] TOOLBAR -->
+    <div class="toolbar">
+      <div class="tb-grp">
+        <span class="lbl">Số biến</span>
+        <input type="number" id="nInput" class="n-inp" min="2" value="2">
+        <button class="btn btn-navy btn-sm" onclick="applyVarCount()">Áp dụng</button>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-grp">
+        <span class="lbl">Mục tiêu</span>
+        <div class="tog-wrap">
+          <button class="tog on" id="togMax" onclick="setObjType('max')">MAX</button>
+          <button class="tog" id="togMin" onclick="setObjType('min')">MIN</button>
+        </div>
+      </div>
+      <div class="tb-sep"></div>
+      <div class="tb-grp" style="margin-left:auto">
+        <button class="btn btn-ghost btn-sm" onclick="loadExample()">Ví dụ mẫu</button>
+        <button class="btn btn-ghost btn-sm" onclick="resetForm()">Reset</button>
+      </div>
+    </div>
+
+    <!-- [3] OBJECTIVE -->
+    <div class="card">
+      <div class="card-hd">Hàm mục tiêu</div>
+      <div class="card-bd">
+        <div class="obj-row" id="objRow"></div>
+        <div class="obj-prev" id="objPrev">z = ...</div>
+      </div>
+    </div>
+
+    <!-- [4] CONSTRAINTS -->
+    <div class="card">
+      <div class="card-hd">Ràng buộc</div>
+      <div class="card-bd">
+        <div id="cList"></div>
+        <button class="add-row" onclick="addRow()">+ Thêm ràng buộc</button>
+        <label class="non-neg">
+          <input type="checkbox" id="nnCheck" checked>
+          Tự động thêm điều kiện không âm xᵢ ≥ 0
+        </label>
+      </div>
+    </div>
+
+    <!-- [5] SOLVE -->
+    <button id="solveBtn" onclick="submitSolve()">
+      <span id="solveLbl">▶ GIẢI</span>
+      <div class="spin" id="solveSpin" style="display:none"></div>
+    </button>
+
+  </section>
+
+  <!-- ══ RESULT SECTION ══ -->
+  <section id="resultSec" style="display:none">
+
+    <!-- [6] RESULT CARD -->
+    <div id="resultCard" class="card" style="border-radius:var(--r) var(--r) 0 0;border-bottom:none;margin-bottom:0"></div>
+
+    <!-- [7] TABS -->
+    <div class="tab-bar">
+      <button class="tab-btn on" data-tab="fm"        onclick="switchTab('fm')">📋 Các bước FM</button>
+      <button class="tab-btn"    data-tab="chart"     onclick="switchTab('chart')">📊 Biểu đồ</button>
+      <button class="tab-btn"    data-tab="reasoning" onclick="switchTab('reasoning')">🧠 Reasoning</button>
+      <button class="tab-btn"    data-tab="export"    onclick="switchTab('export')">💾 Xuất file</button>
+    </div>
+    <div id="tab-fm"        class="tab-pane on"></div>
+    <div id="tab-chart"     class="tab-pane"></div>
+    <div id="tab-reasoning" class="tab-pane"></div>
+    <div id="tab-export"    class="tab-pane"></div>
+
+  </section>
+
+  <footer>Fourier–Motzkin LP Solver | Python + Flask</footer>
+  <div class="toast" id="toast">✓ Đã sao chép</div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════ */
+let N = 2;
+let objType = 'max';
+let chartInst = null;
+let lastResult = null;
+let lastPayload = null;
+let activeFilter = 'ALL';
+
+/* subscript helpers */
+const SUBS = '₀₁₂₃₄₅₆₇₈₉';
+const sub = n => String(n).split('').map(d => SUBS[+d]).join('');
+const vs  = i => 'x' + sub(i + 1);   // x₁ x₂ ...
+const vp  = i => 'x' + (i + 1);      // x1 x2 ... (plain)
+
+const esc = s => s == null ? '' : String(s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => loadExample());
+
+/* ════════════════════════════════════════════════
+   OBJ TYPE
+════════════════════════════════════════════════ */
+function setObjType(t) {
+  objType = t;
+  document.getElementById('togMax').classList.toggle('on', t === 'max');
+  document.getElementById('togMin').classList.toggle('on', t === 'min');
+}
+
+/* ════════════════════════════════════════════════
+   renderForm(n)  ← main re-render
+════════════════════════════════════════════════ */
+function renderForm(n) {
+  N = n;
+  // Rebuild obj row
+  const objRow = document.getElementById('objRow');
+  const oldObj = [...objRow.querySelectorAll('.o-inp')].map(i => i.value);
+  objRow.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const grp = document.createElement('span');
+    grp.className = 'obj-term';
+    if (i > 0) {
+      const sg = document.createElement('span');
+      sg.className = 'obj-sign'; sg.textContent = '+';
+      grp.appendChild(sg);
+    }
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = 'any'; inp.className = 'c-inp o-inp';
+    inp.style.width = '64px'; inp.dataset.idx = i;
+    inp.value = oldObj[i] !== undefined ? oldObj[i] : '1';
+    inp.addEventListener('input', previewObjective);
+    grp.appendChild(inp);
+    const lbl = document.createElement('span');
+    lbl.className = 'vlbl'; lbl.textContent = vs(i);
+    grp.appendChild(lbl);
+    objRow.appendChild(grp);
+  }
+  // Rebuild coeff cells in each constraint row
+  document.querySelectorAll('.c-row').forEach(row => {
+    const old = [...row.querySelectorAll('.cg .c-inp')].map(i => i.value);
+    const sec = row.querySelector('.coeffs-sec');
+    sec.innerHTML = '';
+    for (let i = 0; i < n; i++) {
+      sec.appendChild(mkCoeffCell(i, old[i] !== undefined ? parseFloat(old[i]) : 0));
+    }
+  });
+  previewObjective();
+}
+
+function mkCoeffCell(i, val) {
+  const g = document.createElement('span');
+  g.className = 'cg';
+  const inp = document.createElement('input');
+  inp.type = 'number'; inp.step = 'any'; inp.className = 'c-inp';
+  inp.value = val !== undefined ? val : 0; inp.dataset.idx = i;
+  const lbl = document.createElement('span');
+  lbl.className = 'vlbl'; lbl.textContent = vs(i);
+  g.appendChild(inp); g.appendChild(lbl);
+  return g;
+}
+
+/* ════════════════════════════════════════════════
+   previewObjective()
+════════════════════════════════════════════════ */
+function previewObjective() {
+  const terms = [];
+  document.querySelectorAll('.o-inp').forEach((inp, i) => {
+    const c = parseFloat(inp.value);
+    if (!c) return;
+    const name = vs(i);
+    if (!terms.length) {
+      terms.push(c === 1 ? name : c === -1 ? '−' + name : c + name);
+    } else {
+      if (c < 0) terms.push('− ' + (c === -1 ? name : Math.abs(c) + name));
+      else       terms.push('+ ' + (c ===  1 ? name : c + name));
+    }
+  });
+  document.getElementById('objPrev').textContent =
+    terms.length ? 'z = ' + terms.join(' ') : 'z = 0';
+}
+
+/* ════════════════════════════════════════════════
+   applyVarCount()
+════════════════════════════════════════════════ */
+function applyVarCount() {
+  const v = parseInt(document.getElementById('nInput').value);
+  if (isNaN(v) || v < 2) {
+    alert('Số biến phải ≥ 2');
+    document.getElementById('nInput').value = N;
+    return;
+  }
+  renderForm(v);
+}
+
+/* ════════════════════════════════════════════════
+   addRow()
+════════════════════════════════════════════════ */
+function addRow(coeffs, sense, rhs) {
+  const list = document.getElementById('cList');
+  const row  = document.createElement('div');
+  row.className = 'c-row';
+
+  const sec = document.createElement('span');
+  sec.className = 'coeffs-sec';
+  for (let i = 0; i < N; i++)
+    sec.appendChild(mkCoeffCell(i, Array.isArray(coeffs) ? (coeffs[i] ?? 0) : 0));
+  row.appendChild(sec);
+
+  const sel = document.createElement('select');
+  sel.className = 'sense-sel';
+  [['<=','≤'],['>=','≥'],['=','=']].forEach(([v,t]) => {
+    const o = document.createElement('option');
+    o.value = v; o.textContent = t;
+    if (v === (sense || '<=')) o.selected = true;
+    sel.appendChild(o);
+  });
+  row.appendChild(sel);
+
+  const ri = document.createElement('input');
+  ri.type = 'number'; ri.step = 'any'; ri.className = 'rhs-inp c-inp';
+  ri.placeholder = 'b'; ri.value = rhs !== undefined ? rhs : 0;
+  row.appendChild(ri);
+
+  const rm = document.createElement('button');
+  rm.className = 'rm-btn'; rm.title = 'Xoá'; rm.innerHTML = '&times;';
+  rm.onclick = () => row.remove();
+  row.appendChild(rm);
+
+  list.appendChild(row);
+}
+
+/* ════════════════════════════════════════════════
+   loadExample / resetForm
+════════════════════════════════════════════════ */
+function loadExample() {
+  N = 2;
+  document.getElementById('nInput').value = 2;
+  setObjType('max');
+  renderForm(2);
+  const oi = document.querySelectorAll('.o-inp');
+  oi[0].value = 3; oi[1].value = 2;
+  document.getElementById('cList').innerHTML = '';
+  addRow([1,1],'<=',4); addRow([2,1],'<=',6);
+  addRow([-1,0],'<=',0); addRow([0,-1],'<=',0);
+  document.getElementById('nnCheck').checked = false;
+  previewObjective();
+}
+
+function resetForm() {
+  N = 2;
+  document.getElementById('nInput').value = 2;
+  setObjType('max'); renderForm(2);
+  document.getElementById('cList').innerHTML = '';
+  document.getElementById('nnCheck').checked = true;
+  previewObjective();
+  document.getElementById('resultSec').style.display = 'none';
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  lastResult = null; lastPayload = null;
+}
+
+/* ════════════════════════════════════════════════
+   collectInput
+════════════════════════════════════════════════ */
+function collectInput() {
+  const n = N;
+  const obj_coeffs = [...document.querySelectorAll('.o-inp')].map(i => parseFloat(i.value) || 0);
+  const constraints = [];
+  document.querySelectorAll('.c-row').forEach(row => {
+    const coeffs = [...row.querySelectorAll('.coeffs-sec .c-inp')].map(i => parseFloat(i.value) || 0);
+    const sense  = row.querySelector('.sense-sel').value;
+    const rhs    = parseFloat(row.querySelector('.rhs-inp').value) || 0;
+    constraints.push({ coeffs, sense, rhs });
+  });
+  if (document.getElementById('nnCheck').checked) {
+    for (let i = 0; i < n; i++) {
+      const c = Array(n).fill(0); c[i] = -1;
+      constraints.push({ coeffs: c, sense: '<=', rhs: 0 });
+    }
+  }
+  return { n, constraints, obj_coeffs, obj_type: objType };
+}
+
+/* ════════════════════════════════════════════════
+   submitSolve()
+════════════════════════════════════════════════ */
+async function submitSolve() {
+  const payload = collectInput();
+  if (!payload.constraints.length) { showErr('Hãy thêm ít nhất một ràng buộc.'); return; }
+
+  document.getElementById('solveLbl').textContent = 'Đang giải...';
+  document.getElementById('solveSpin').style.display = 'block';
+  document.getElementById('solveBtn').disabled = true;
+
+  try {
+    const resp = await fetch('/api/solve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) { showErr('Lỗi: ' + data.error); return; }
+    lastResult = data; lastPayload = payload;
+    renderKetQua(data);
+  } catch(e) { showErr('Lỗi kết nối: ' + e.message); }
+  finally {
+    document.getElementById('solveLbl').textContent = '▶ GIẢI';
+    document.getElementById('solveSpin').style.display = 'none';
+    document.getElementById('solveBtn').disabled = false;
+  }
+}
+
+function showErr(msg) {
+  const sec = document.getElementById('resultSec');
+  sec.style.display = 'block';
+  document.getElementById('resultCard').innerHTML =
+    `<div class="card-bd"><div class="alert alert-err">
+      <span class="alert-icon">⚠️</span>
+      <div>${esc(msg)}</div></div></div>`;
+  ['fm','chart','reasoning','export'].forEach(t =>
+    document.getElementById('tab-' + t).innerHTML = '');
+  sec.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ════════════════════════════════════════════════
+   renderKetQua(data)
+════════════════════════════════════════════════ */
+function renderKetQua(data) {
+  const sec = document.getElementById('resultSec');
+  sec.style.display = 'block';
+  const card = document.getElementById('resultCard');
+  card.className = 'card fade-in';
+
+  if (!data.feasible) {
+    card.innerHTML = `<div class="card-bd">
+      <div class="alert alert-err">
+        <span class="alert-icon">✗</span>
+        <div><strong>Bài toán VÔ NGHIỆM</strong> — Không tồn tại nghiệm khả thi.</div>
+      </div></div>`;
+  } else {
+    const chips = (data.var_names || []).map(v =>
+      `<div class="sol-chip">
+        <span class="sc-lbl">${esc(v)}</span>
+        <span class="sc-val">${data.solution[v]}</span>
+      </div>`).join('');
+    card.innerHTML = `<div class="card-bd">
+      <div class="alert alert-ok" style="margin-bottom:10px">
+        <span class="alert-icon">✓</span>
+        <div><strong>Tìm được nghiệm tối ưu!</strong></div>
+      </div>
+      <div class="sol-grid">
+        ${chips}
+        <div class="sol-chip zopt">
+          <span class="sc-lbl">z* (${esc(data.obj_type)})</span>
+          <span class="sc-val">${data.z}</span>
+        </div>
+      </div></div>`;
+  }
+
+  renderSteps(data);
+  renderReasoning(data);
+  renderExport(data);
+  // Chart rendered on tab switch to avoid canvas-invisible issue
+  document.getElementById('tab-chart').innerHTML =
+    `<div class="chart-notice" id="chartPlaceholder">Chuyển sang tab này để xem biểu đồ.</div>`;
+  switchTab('fm');
+  sec.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+/* ════════════════════════════════════════════════
+   switchTab(name)
+════════════════════════════════════════════════ */
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.tab-pane').forEach(p =>
+    p.classList.toggle('on', p.id === 'tab-' + name));
+  if (name === 'chart' && lastResult) renderChart(lastResult);
+}
+
+/* ════════════════════════════════════════════════
+   renderSteps(data)  — Tab 1
+════════════════════════════════════════════════ */
+function renderSteps(data) {
+  const con = document.getElementById('tab-fm');
+  con.innerHTML = '';
+  (data.steps_constraints || []).forEach((step, idx) => {
+    const item = document.createElement('div');
+    item.className = 'acc' + (idx === 0 ? ' open' : '');
+    const hd = document.createElement('div');
+    hd.className = 'acc-hd';
+    hd.innerHTML = `<span><span class="acc-num">Bước ${step.buoc}</span>${esc(step.tieu_de)}</span><i class="acc-chev">▾</i>`;
+    hd.addEventListener('click', () => item.classList.toggle('open'));
+    const bd = document.createElement('div');
+    bd.className = 'acc-bd';
+
+    // Removed constraints (from previous step, now gone)
+    (step.bi_loai || []).forEach(cs => {
+      const d = document.createElement('div');
+      d.className = 'cs gone'; d.textContent = cs; bd.appendChild(d);
+    });
+    // Current constraints
+    const newSet = new Set(step.moi_tao || []);
+    (step.constraints || []).forEach(cs => {
+      const d = document.createElement('div');
+      d.className = 'cs ' + (newSet.has(cs) ? 'newb' : 'norm');
+      d.textContent = cs; bd.appendChild(d);
+    });
+
+    item.appendChild(hd); item.appendChild(bd);
+    con.appendChild(item);
+  });
+
+  // Feasibility result
+  const item = document.createElement('div');
+  item.className = 'acc open';
+  const hd = document.createElement('div');
+  hd.className = 'acc-hd';
+  hd.innerHTML = `<span><span class="acc-num">Kết quả</span>Kiểm tra khả thi</span><i class="acc-chev">▾</i>`;
+  hd.addEventListener('click', () => item.classList.toggle('open'));
+  const bd = document.createElement('div');
+  bd.className = 'acc-bd';
+  bd.innerHTML = data.feasible
+    ? `<div class="feas-ok">✓ Hệ CÓ NGHIỆM — tất cả ràng buộc thoả mãn</div>`
+    : `<div class="feas-no">✗ Hệ VÔ NGHIỆM — tồn tại ràng buộc vi phạm</div>`;
+  item.appendChild(hd); item.appendChild(bd);
+  con.appendChild(item);
+}
+
+/* ════════════════════════════════════════════════
+   renderChart(data)  — Tab 2
+════════════════════════════════════════════════ */
+const CLRS = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#00acc1','#f4511e','#6d4c41','#c0ca33','#00838f'];
+
+function renderChart(data) {
+  const pane = document.getElementById('tab-chart');
+  pane.innerHTML = '';
+
+  if (!data || data.n !== 2) {
+    pane.innerHTML = `<div class="chart-notice">
+      📊 Biểu đồ chỉ hỗ trợ bài toán <strong>2 biến</strong> (n = 2).<br>
+      Bài toán này có <strong>n = ${data ? data.n : '?'}</strong> biến.
+    </div>`;
+    return;
+  }
+
+  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  const wrap = document.createElement('div');
+  wrap.id = 'chartWrap';
+  const canvas = document.createElement('canvas');
+  wrap.appendChild(canvas); pane.appendChild(wrap);
+
+  const verts  = data.vertices || [];
+  const feasPts  = verts.filter(v => v.feasible && !v.is_optimal).map(v => ({x:v.point[0],y:v.point[1],z:v.z}));
+  const infPts   = verts.filter(v => !v.feasible).map(v => ({x:v.point[0],y:v.point[1]}));
+  const optVerts = verts.filter(v => v.is_optimal);
+  const optPt    = optVerts.length ? {x:optVerts[0].point[0],y:optVerts[0].point[1],z:optVerts[0].z} : null;
+
+  const allX = verts.map(v=>v.point[0]), allY = verts.map(v=>v.point[1]);
+  const xMax = Math.max(...allX, 1) * 1.3;
+  const yMax = Math.max(...allY, 1) * 1.3;
+
+  const datasets = [];
+
+  // Feasible region fill
+  const fReg = verts.filter(v=>v.feasible).map(v=>({x:v.point[0],y:v.point[1]}));
+  if (fReg.length >= 3) {
+    const poly = sortByAngle(fReg); poly.push({...poly[0]});
+    datasets.push({ type:'line', label:'Miền nghiệm', data:poly,
+      fill:true, backgroundColor:'rgba(26,35,126,0.07)',
+      borderColor:'rgba(26,35,126,0.2)', borderWidth:1,
+      pointRadius:0, tension:0, order:10 });
+  }
+
+  // Constraint lines
+  (lastPayload ? lastPayload.constraints : []).forEach((c, i) => {
+    if (c.coeffs[0] === 0 && c.coeffs[1] === 0) return;
+    const pts = lineClip(c.coeffs[0], c.coeffs[1], c.rhs, xMax, yMax);
+    if (pts.length < 2) return;
+    const lbl = fmtCLabel(c);
+    datasets.push({ type:'line', label:lbl, data:pts,
+      borderColor: CLRS[i % CLRS.length], borderWidth:1.5,
+      borderDash:[5,4], pointRadius:0, fill:false, tension:0, order:9 });
+  });
+
+  // Infeasible vertices
+  if (infPts.length) datasets.push({ type:'scatter', label:'Đỉnh không khả thi',
+    data:infPts, backgroundColor:'rgba(130,130,130,0.55)', pointRadius:5, order:3 });
+
+  // Feasible vertices
+  if (feasPts.length) datasets.push({ type:'scatter', label:'Đỉnh khả thi',
+    data:feasPts, backgroundColor:'rgba(26,35,126,0.75)', pointRadius:7, order:2 });
+
+  // Optimal
+  if (optPt) datasets.push({ type:'scatter', label:`★ Tối ưu (z=${data.z})`,
+    data:[optPt], backgroundColor:'#ffd600', borderColor:'#e65100',
+    borderWidth:2, pointRadius:14, pointStyle:'star', order:1 });
+
+  chartInst = new Chart(canvas, {
+    type:'scatter', data:{datasets},
+    options:{
+      responsive:true, animation:{duration:350},
+      plugins:{
+        legend:{ position:'top', labels:{ font:{size:11}, boxWidth:16 } },
+        tooltip:{ callbacks:{ label(ctx){
+          const p = ctx.raw;
+          if (!p || p.x == null) return '';
+          let s = `(${fmt(p.x)}, ${fmt(p.y)})`;
+          if (p.z != null) s += `  →  z = ${fmt(p.z)}`;
+          return s;
+        }}}
+      },
+      scales:{
+        x:{ title:{display:true,text:'x₁'}, min:0, max:Math.ceil(xMax),
+            grid:{color:'#eef0fb'} },
+        y:{ title:{display:true,text:'x₂'}, min:0, max:Math.ceil(yMax),
+            grid:{color:'#eef0fb'} }
+      }
+    }
+  });
+}
+
+function fmt(v) { return Number.isInteger(v) ? v : +v.toFixed(4); }
+
+function lineClip(a1, a2, b, xMax, yMax) {
+  const pts = [];
+  const add = (x, y) => {
+    if (x >= -0.01 && x <= xMax+0.01 && y >= -0.01 && y <= yMax+0.01)
+      pts.push({x, y});
+  };
+  if (Math.abs(a2) > 1e-10) {
+    add(0, b/a2); add(xMax, (b-a1*xMax)/a2);
+    if (Math.abs(a1) > 1e-10) { add(b/a1, 0); add((b-a2*yMax)/a1, yMax); }
+  } else if (Math.abs(a1) > 1e-10) {
+    const x = b/a1; add(x,0); add(x,yMax);
+  }
+  return pts.filter((p,i,a) =>
+    a.findIndex(q=>Math.abs(q.x-p.x)<1e-9&&Math.abs(q.y-p.y)<1e-9)===i).slice(0,2);
+}
+
+function sortByAngle(pts) {
+  const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+  const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+  return pts.slice().sort((a,b)=>
+    Math.atan2(a.y-cy,a.x-cx)-Math.atan2(b.y-cy,b.x-cx));
+}
+
+function fmtCLabel(c) {
+  let s = '';
+  c.coeffs.forEach((cf,i)=>{
+    if (cf===0) return;
+    const nm = vs(i);
+    if (!s) s += cf===1?nm:cf===-1?'−'+nm:cf+nm;
+    else s += cf<0?' − '+(cf===-1?nm:Math.abs(cf)+nm):' + '+(cf===1?nm:cf+nm);
+  });
+  const m={'<=':'≤','>=':'≥','=':'='};
+  return `${s||'0'} ${m[c.sense]||c.sense} ${c.rhs}`;
+}
+
+/* ════════════════════════════════════════════════
+   renderReasoning(data)  — Tab 3
+════════════════════════════════════════════════ */
+const ICO = {INFO:'ℹ️', TINH_TOAN:'🔢', KET_LUAN:'✅', CANH_BAO:'⚠️'};
+const LBL = {INFO:'INFO', TINH_TOAN:'Tính toán', KET_LUAN:'Kết luận', CANH_BAO:'Cảnh báo'};
+const FILTERS = ['ALL','TINH_TOAN','KET_LUAN','CANH_BAO'];
+const FLBL = {ALL:'Tất cả', TINH_TOAN:'🔢 Tính toán', KET_LUAN:'✅ Kết luận', CANH_BAO:'⚠️ Cảnh báo'};
+
+function renderReasoning(data) {
+  const pane = document.getElementById('tab-reasoning');
+  const steps = (data.reasoning && data.reasoning.steps) || [];
+
+  const btns = FILTERS.map(f =>
+    `<button class="rf${f===activeFilter?' on':''}" data-f="${f}" onclick="filterR('${f}')">${FLBL[f]}</button>`
+  ).join('');
+
+  const cards = steps.map(s => {
+    const show = activeFilter==='ALL' || s.loai===activeFilter ? '' : 'display:none';
+    return `<div class="rs ${esc(s.loai)}" data-t="${esc(s.loai)}" style="${show}">
+      <div class="rs-hd">
+        <span class="rs-ico">${ICO[s.loai]||'•'}</span>
+        <span class="rs-tag ${esc(s.loai)}">${esc(LBL[s.loai]||s.loai)}</span>
+        <span class="rs-ttl">${esc(s.tieu_de)}</span>
+        <span class="rs-num">#${s.so_buoc}</span>
+      </div>
+      ${s.noi_dung && s.noi_dung!==s.tieu_de ? `<div class="rs-body">${esc(s.noi_dung)}</div>` : ''}
+      ${s.cong_thuc ? `<div class="rs-code">${esc(s.cong_thuc)}</div>` : ''}
+      ${s.ket_qua   ? `<div class="rs-res">→ ${esc(s.ket_qua)}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  pane.innerHTML = `<div class="rf-bar">${btns}</div><div id="rList">${cards}</div>`;
+}
+
+function filterR(f) {
+  activeFilter = f;
+  document.querySelectorAll('.rf').forEach(b =>
+    b.classList.toggle('on', b.dataset.f === f));
+  document.querySelectorAll('.rs').forEach(el =>
+    el.style.display = (f==='ALL'||el.dataset.t===f) ? 'block' : 'none');
+}
+
+/* ════════════════════════════════════════════════
+   renderExport(data)  — Tab 4
+════════════════════════════════════════════════ */
+function renderExport(data) {
+  const pane = document.getElementById('tab-export');
+  pane.innerHTML = `
+    <div class="exp-btns">
+      <a class="btn btn-navy" href="/api/export" download="giai_trinh.txt">📄 Tải file TXT</a>
+      <button class="btn btn-ghost" onclick="copyJson()">📋 Copy JSON</button>
+    </div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Preview 15 dòng đầu:</div>
+    <div class="exp-preview" id="expPrev">Đang tải...</div>`;
+  loadPreview();
+}
+
+async function loadPreview() {
+  try {
+    const r = await fetch('/api/export');
+    const txt = await r.text();
+    const el = document.getElementById('expPrev');
+    if (!el) return;
+    const lines = txt.split('\n');
+    el.textContent = lines.slice(0,15).join('\n') + (lines.length>15?'\n...':'');
+  } catch(e) {
+    const el = document.getElementById('expPrev');
+    if (el) el.textContent = 'Không thể tải preview.';
+  }
+}
+
+function copyJson() {
+  if (!lastResult) return;
+  const txt = JSON.stringify(lastResult, null, 2);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(showToast).catch(() => fallbackCopy(txt));
+  } else fallbackCopy(txt);
+}
+
+function fallbackCopy(txt) {
+  const ta = document.createElement('textarea');
+  ta.value = txt; ta.style.cssText='position:fixed;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); document.body.removeChild(ta);
+  showToast();
+}
+
+function showToast() {
+  const t = document.getElementById('toast');
+  t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000);
+}
+</script>
+</body>
+</html>

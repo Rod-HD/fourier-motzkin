@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+giai_trinh.txt
+*.txt.bak
+.env
+flask_session/
