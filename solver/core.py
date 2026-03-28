@@ -471,9 +471,7 @@ def _tinh_chart_data_2d(
     # Level lines
     mag_oc = sqrt(sum(cf ** 2 for cf in obj_coeffs[:2]))
     grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
-    z_init_val = (z_final / 3) if abs(z_final) > 1e-9 else 0.0
     level_lines: Dict = {
-        "z_init":    z_init_val,
         "z_opt":     z_final,
         "coeffs":    obj_coeffs[:2],
         "direction": grad,

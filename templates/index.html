@@ -790,9 +790,6 @@ function renderChart(data) {
 
   // ── 3. Level lines ───────────────────────────────────────────────────────
   const oc = lastPayload ? lastPayload.obj_coeffs : null;
-  const zRef = (data.level_lines && data.level_lines.z_init != null)
-    ? data.level_lines.z_init
-    : (oc && data.z != null ? data.z / 3 : null);
   if (oc && (Math.abs(oc[0])>1e-12 || Math.abs(oc[1])>1e-12)) {
     // Đường mức tối ưu z* (cam đậm, tĩnh)
     if (optV && data.z != null) {
@@ -893,18 +890,32 @@ function renderChart(data) {
         });
       }
 
-      // Objective gradient arrow — đặt tại midpoint đường mức z_ref
+      // Đường init tĩnh + gradient arrow (vị trí từ calcZInit)
       if(oc && (Math.abs(oc[0])>1e-12||Math.abs(oc[1])>1e-12)) {
+        const z_init_val = calcZInit(chart, oc, data.obj_type);
+        const pZ0 = lineClip(oc[0], oc[1], z_init_val, xMax, yMax);
+
+        // Đường init mờ (tĩnh)
+        if(pZ0.length >= 2) {
+          const ip1=toPx(pZ0[0].x,pZ0[0].y), ip2=toPx(pZ0[1].x,pZ0[1].y);
+          ctx2.save();
+          ctx2.beginPath(); ctx2.moveTo(ip1.px,ip1.py); ctx2.lineTo(ip2.px,ip2.py);
+          ctx2.strokeStyle='rgba(255,111,0,0.25)'; ctx2.lineWidth=1.5;
+          ctx2.setLineDash([6,4]); ctx2.stroke();
+          const imx=(ip1.px+ip2.px)/2, imy=(ip1.py+ip2.py)/2;
+          ctx2.fillStyle='rgba(200,80,0,0.45)';
+          ctx2.font='10px Segoe UI,sans-serif';
+          ctx2.fillText(`z₀ = ${z_init_val.toFixed(1)} (khởi đầu)`, imx+6, imy-4);
+          ctx2.restore();
+        }
+
+        // Gradient arrow tại midpoint đường init
         const mag=Math.sqrt(oc[0]*oc[0]+oc[1]*oc[1]);
         const gx=oc[0]/mag,gy=oc[1]/mag;
         const dir=data.obj_type==='max'?1:-1;
         const aLen=Math.min(xMax,yMax)*0.18;
-        // Tìm midpoint của đường z_ref
         let midX=xMax*0.15, midY=yMax*0.15;
-        if(zRef!=null) {
-          const pZR=lineClip(oc[0],oc[1],zRef,xMax,yMax);
-          if(pZR.length>=2){midX=(pZR[0].x+pZR[1].x)/2; midY=(pZR[0].y+pZR[1].y)/2;}
-        }
+        if(pZ0.length>=2){midX=(pZ0[0].x+pZ0[1].x)/2; midY=(pZ0[0].y+pZ0[1].y)/2;}
         const s=toPx(midX,midY), e=toPx(midX+dir*gx*aLen,midY+dir*gy*aLen);
         drawArrow(s.px,s.py,e.px,e.py,'rgba(255,111,0,0.75)',2.5);
         ctx2.save();
@@ -934,15 +945,18 @@ function renderChart(data) {
     id: 'animatingLine',
     afterDatasetsDraw(chart) {
       const ld = chart._levelLineData;
-      if (!ld || ld.z_init == null || ld.z_opt == null) return;
-      const { coeffs, z_init, z_opt, obj_type: ot } = ld;
+      if (!ld || ld.z_opt == null) return;
+      const { coeffs, z_opt, obj_type: ot } = ld;
       const [c1, c2] = coeffs || [0, 0];
       if (Math.abs(c1) < 1e-12 && Math.abs(c2) < 1e-12) return;
 
       const ctx2 = chart.ctx;
       const xAxis = chart.scales.x, yAxis = chart.scales.y;
 
-      // Progress 0→1 trong 5000ms, lặp
+      // z_init tính từ góc viewport xa nhất theo hướng ngược tối ưu
+      const z_init = calcZInit(chart, coeffs, ot);
+
+      // Progress 0→1 trong 5000ms, lặp — z_init luôn xa, z_opt luôn đúng
       const DURATION = 5000;
       const raw = (performance.now() % DURATION) / DURATION;
       // easeInOut
@@ -1012,7 +1026,7 @@ function renderChart(data) {
   });
 
   // Gán level_lines data cho animation plugin
-  if (data.level_lines && data.level_lines.z_init != null)
+  if (data.level_lines && data.level_lines.z_opt != null)
     chartInst._levelLineData = data.level_lines;
 
   // ── 6. Pulse marker on optimal ───────────────────────────────────────────
@@ -1053,6 +1067,17 @@ function sortByAngle(pts) {
   const cy = pts.reduce((s,p)=>s+p.y,0)/pts.length;
   return pts.slice().sort((a,b)=>
     Math.atan2(a.y-cy,a.x-cx)-Math.atan2(b.y-cy,b.x-cx));
+}
+
+function calcZInit(chart, coeffs, objType) {
+  // Góc viewport xa nhất theo hướng NGƯỢC tối ưu
+  const xA = chart.scales.x, yA = chart.scales.y;
+  const [c1, c2] = coeffs || [0, 0];
+  const a0 = objType === 'max' ? -c1 : c1;
+  const a1 = objType === 'max' ? -c2 : c2;
+  const x_far = a0 >= 0 ? xA.max : xA.min;
+  const y_far = a1 >= 0 ? yA.max : yA.min;
+  return c1 * x_far + c2 * y_far;
 }
 
 function fmtCLabel(c) {
