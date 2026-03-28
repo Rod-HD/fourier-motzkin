@@ -393,6 +393,97 @@ def kiem_tra_nghiem(
 
 
 # ---------------------------------------------------------------------------
+# Chart data cho bài toán 2 biến (dùng chung với phương pháp hình học)
+# ---------------------------------------------------------------------------
+
+def _tinh_chart_data_2d(
+    constraints: List[Constraint],
+    obj_coeffs: List[float],
+    obj_type: str,
+    z_final: float,
+    solution: List[float],
+) -> Tuple[List[Dict], List[Dict], Dict]:
+    """Tính vertices, boundary_lines, level_lines cho biểu đồ 2 biến.
+
+    Dùng lazy import để tránh circular import với solver.geometric.
+    """
+    from itertools import combinations
+    from math import sqrt
+    from solver.geometric import (
+        phan_loai_duong_bien, giai_he_phuong_trinh, _kiem_tra, tinh_huong_vec
+    )
+
+    var_names = [f"x{i+1}" for i in range(2)]
+
+    # Boundary lines
+    boundary_lines: List[Dict] = []
+    for i, c in enumerate(constraints):
+        info = phan_loai_duong_bien(c, var_names)
+        info["idx"] = i + 1
+        boundary_lines.append(info)
+
+    # Vertices: giao điểm mọi cặp ràng buộc
+    labels_abc = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    feasible_vertices: List[Dict] = []
+    seen: set = set()
+
+    for (i, j) in combinations(range(len(constraints)), 2):
+        sol = giai_he_phuong_trinh(constraints[i], constraints[j])
+        if sol is None:
+            continue
+        key = (round(sol[0], 6), round(sol[1], 6))
+        if key in seen:
+            continue
+        seen.add(key)
+        if not _kiem_tra(sol, constraints):
+            continue
+
+        lbl = (labels_abc[len(feasible_vertices)]
+               if len(feasible_vertices) < len(labels_abc)
+               else f"P{len(feasible_vertices)}")
+        z = sum(obj_coeffs[k] * sol[k] for k in range(2))
+        feasible_vertices.append({
+            "point": [round(sol[0], 6), round(sol[1], 6)],
+            "label": f"{lbl}({_fmt(sol[0])},{_fmt(sol[1])})",
+            "feasible": True,
+            "is_optimal": False,
+            "from_indices": (i, j),
+            "z": round(z, 6),
+        })
+
+    # Đánh dấu đỉnh tối ưu (gần nhất với solution)
+    opt_x = round(solution[0], 4) if len(solution) > 0 else 0.0
+    opt_y = round(solution[1], 4) if len(solution) > 1 else 0.0
+    if feasible_vertices:
+        best = min(feasible_vertices,
+                   key=lambda v: (v["point"][0] - opt_x) ** 2 + (v["point"][1] - opt_y) ** 2)
+        best["is_optimal"] = True
+
+    # Cập nhật huong_mien theo centroid thực tế
+    if feasible_vertices:
+        cx_f = sum(v["point"][0] for v in feasible_vertices) / len(feasible_vertices)
+        cy_f = sum(v["point"][1] for v in feasible_vertices) / len(feasible_vertices)
+        for idx_c, c in enumerate(constraints):
+            hv = tinh_huong_vec(c, cx_f, cy_f)
+            boundary_lines[idx_c]["huong_vec"] = hv
+            boundary_lines[idx_c]["huong_mien"] = hv
+
+    # Level lines
+    mag_oc = sqrt(sum(cf ** 2 for cf in obj_coeffs[:2]))
+    grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
+    z_init_val = (z_final / 3) if abs(z_final) > 1e-9 else 0.0
+    level_lines: Dict = {
+        "z_init":    z_init_val,
+        "z_opt":     z_final,
+        "coeffs":    obj_coeffs[:2],
+        "direction": grad,
+        "obj_type":  obj_type,
+    }
+
+    return feasible_vertices, boundary_lines, level_lines
+
+
+# ---------------------------------------------------------------------------
 # Pipeline chính
 # ---------------------------------------------------------------------------
 
@@ -477,9 +568,11 @@ def giai_bai_toan(
         engine.ghi("Kết luận", "Bài toán VÔ NGHIỆM hoặc không bị chặn.", "KET_LUAN")
         return {
             "feasible": False, "solution": {}, "z": None,
-            "obj_type": obj_type, "steps_constraints": steps_info,
+            "obj_type": obj_type, "method": "algebraic",
+            "steps_constraints": steps_info,
             "reasoning": engine.to_dict(), "vertices": [],
-            "var_names": var_names, "n": n
+            "boundary_lines": [], "level_lines": {},
+            "only_2d": (n == 2), "var_names": var_names, "n": n,
         }
 
     # z_max là max của (c^T x) với max, hoặc max của (-c^T x) với min
@@ -506,14 +599,26 @@ def giai_bai_toan(
         "KET_LUAN"
     )
 
+    # Chart data (chỉ tính cho n=2 khi có nghiệm)
+    if n == 2 and feasible:
+        verts, blines, llines = _tinh_chart_data_2d(
+            constraints, obj_coeffs, obj_type, z_rounded, solution
+        )
+    else:
+        verts, blines, llines = [], [], {}
+
     return {
         "feasible": feasible,
         "solution": sol_dict,
         "z": z_rounded,
         "obj_type": obj_type,
+        "method": "algebraic",
         "steps_constraints": steps_info,
         "reasoning": engine.to_dict(),
-        "vertices": [],
+        "vertices": verts,
+        "boundary_lines": blines,
+        "level_lines": llines,
+        "only_2d": (n == 2),
         "var_names": var_names,
-        "n": n
+        "n": n,
     }

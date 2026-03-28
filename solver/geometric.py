@@ -454,9 +454,11 @@ def giai_hinh_hoc(
     # ── Level lines ───────────────────────────────────────────────────────
     mag_oc = sqrt(sum(c ** 2 for c in obj_coeffs[:2]))
     grad = [obj_coeffs[k] / mag_oc for k in range(2)] if mag_oc > 1e-12 else [0.0, 0.0]
+    z_init_val = (best_z / 3) if abs(best_z) > 1e-9 else 0.0
     level_lines = {
-        "z0":       {"z": 0.0,     "coeffs": obj_coeffs},
-        "zopt":     {"z": best_z,  "coeffs": obj_coeffs},
+        "z_init":   z_init_val,
+        "z_opt":    best_z,
+        "coeffs":   obj_coeffs[:2],
         "direction": grad,
         "obj_type": obj_type,
     }

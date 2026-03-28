@@ -547,7 +547,10 @@ function resetForm() {
   document.getElementById('nnCheck').checked = true;
   previewObjective();
   document.getElementById('resultSec').style.display = 'none';
-  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  if (chartInst) {
+    if (chartInst._animFrame) cancelAnimationFrame(chartInst._animFrame);
+    chartInst.destroy(); chartInst = null;
+  }
   lastResult = null; lastPayload = null;
 }
 
@@ -738,7 +741,10 @@ function renderChart(data) {
     return;
   }
 
-  if (chartInst) { chartInst.destroy(); chartInst = null; }
+  if (chartInst) {
+    if (chartInst._animFrame) cancelAnimationFrame(chartInst._animFrame);
+    chartInst.destroy(); chartInst = null;
+  }
   const wrap = document.createElement('div');
   wrap.id = 'chartWrap'; wrap.style.position = 'relative';
   const canvas = document.createElement('canvas');
@@ -768,7 +774,7 @@ function renderChart(data) {
     pointRadius:0 });
 
   // ── 2. Constraint / boundary lines ──────────────────────────────────────
-  const lineSrc = (isGeo && data.boundary_lines && data.boundary_lines.length)
+  const lineSrc = (data.boundary_lines && data.boundary_lines.length)
     ? data.boundary_lines.map(bl => ({coeffs:bl.coeffs||[0,0], rhs:bl.rhs??0, _lbl:bl.label}))
     : (lastPayload ? lastPayload.constraints.map(c => ({...c, _lbl:null})) : []);
 
@@ -784,21 +790,15 @@ function renderChart(data) {
 
   // ── 3. Level lines ───────────────────────────────────────────────────────
   const oc = lastPayload ? lastPayload.obj_coeffs : null;
-  const zRef = (oc && data.z != null) ? data.z / 3 : null;
+  const zRef = (data.level_lines && data.level_lines.z_init != null)
+    ? data.level_lines.z_init
+    : (oc && data.z != null ? data.z / 3 : null);
   if (oc && (Math.abs(oc[0])>1e-12 || Math.abs(oc[1])>1e-12)) {
-    // Đường mức khởi đầu z_ref = z*/3 (faint orange)
-    if (zRef != null) {
-      const pZR = lineClip(oc[0], oc[1], zRef, xMax, yMax);
-      if (pZR.length >= 2)
-        datasets.push({ type:'line', label:`z = ${+zRef.toFixed(4)} (khởi đầu)`, data:pZR,
-          borderColor:'rgba(255,111,0,0.35)', borderWidth:1.5, borderDash:[6,4],
-          pointRadius:0, fill:false, tension:0, order:8 });
-    }
-    // Đường mức tối ưu z* (cam đậm)
+    // Đường mức tối ưu z* (cam đậm, tĩnh)
     if (optV && data.z != null) {
       const pZS = lineClip(oc[0], oc[1], data.z, xMax, yMax);
       if (pZS.length >= 2)
-        datasets.push({ type:'line', label:`z = ${data.z} (tối ưu)`, data:pZS,
+        datasets.push({ type:'line', label:`z* = ${data.z} (tối ưu)`, data:pZS,
           borderColor:'#FF6F00', borderWidth:2.5, borderDash:[8,4],
           pointRadius:0, fill:false, tension:0, order:7 });
     }
@@ -872,8 +872,8 @@ function renderChart(data) {
         ctx2.closePath(); ctx2.fill(); ctx2.restore();
       };
 
-      // Boundary arrows (geometric)
-      if (isGeo && data.boundary_lines) {
+      // Boundary arrows
+      if (data.boundary_lines && data.boundary_lines.length) {
         data.boundary_lines.forEach((bl,i) => {
           const [a1,a2] = bl.coeffs||[0,0];
           if(Math.abs(a1)<1e-12 && Math.abs(a2)<1e-12) return;
@@ -929,9 +929,68 @@ function renderChart(data) {
     }
   };
 
+  // Plugin animation đường mức di chuyển từ z_init → z_opt
+  const animatingLinePlugin = {
+    id: 'animatingLine',
+    afterDatasetsDraw(chart) {
+      const ld = chart._levelLineData;
+      if (!ld || ld.z_init == null || ld.z_opt == null) return;
+      const { coeffs, z_init, z_opt, obj_type: ot } = ld;
+      const [c1, c2] = coeffs || [0, 0];
+      if (Math.abs(c1) < 1e-12 && Math.abs(c2) < 1e-12) return;
+
+      const ctx2 = chart.ctx;
+      const xAxis = chart.scales.x, yAxis = chart.scales.y;
+
+      // Progress 0→1 trong 5000ms, lặp
+      const DURATION = 5000;
+      const raw = (performance.now() % DURATION) / DURATION;
+      // easeInOut
+      const t = raw < 0.5 ? 2 * raw * raw : 1 - Math.pow(-2 * raw + 2, 2) / 2;
+
+      const z_cur = z_init + (z_opt - z_init) * t;
+      const opacity = 0.2 + 0.7 * t;
+
+      // Tính 2 điểm của đường c1*x1+c2*x2 = z_cur
+      const xMin = xAxis.min, xMax2 = xAxis.max;
+      let p1, p2;
+      if (Math.abs(c2) > 1e-9) {
+        p1 = { x: xMin,  y: (z_cur - c1 * xMin)  / c2 };
+        p2 = { x: xMax2, y: (z_cur - c1 * xMax2) / c2 };
+      } else {
+        const xv = z_cur / c1;
+        p1 = { x: xv, y: yAxis.min };
+        p2 = { x: xv, y: yAxis.max };
+      }
+
+      const px1 = xAxis.getPixelForValue(p1.x), py1 = yAxis.getPixelForValue(p1.y);
+      const px2 = xAxis.getPixelForValue(p2.x), py2 = yAxis.getPixelForValue(p2.y);
+
+      ctx2.save();
+      ctx2.beginPath();
+      ctx2.moveTo(px1, py1); ctx2.lineTo(px2, py2);
+      ctx2.strokeStyle = `rgba(255,111,0,${opacity})`;
+      ctx2.lineWidth = 2;
+      ctx2.setLineDash([8, 4]);
+      ctx2.stroke();
+
+      // Label z_cur
+      const midPx = (px1 + px2) / 2, midPy = (py1 + py2) / 2;
+      ctx2.fillStyle = `rgba(230,81,0,${opacity})`;
+      ctx2.font = '11px Segoe UI,sans-serif';
+      ctx2.fillText(`z = ${z_cur.toFixed(1)}`, midPx + 6, midPy - 6);
+      ctx2.restore();
+
+      // Lên lịch frame tiếp theo
+      chart._animFrame = requestAnimationFrame(() => {
+        if (chart.canvas) chart.draw();
+      });
+    }
+  };
+
   chartInst = new Chart(canvas, {
     type:'scatter', data:{datasets},
-    plugins:[feasibleRegionPlugin, chartPlugin],
+    plugins:[feasibleRegionPlugin, animatingLinePlugin, chartPlugin],
     options:{
       responsive:true, animation:{duration:350},
       plugins:{
@@ -951,6 +1010,10 @@ function renderChart(data) {
       }
     }
   });
+
+  // Gán level_lines data cho animation plugin
+  if (data.level_lines && data.level_lines.z_init != null)
+    chartInst._levelLineData = data.level_lines;
 
   // ── 6. Pulse marker on optimal ───────────────────────────────────────────
   if (optV) {
