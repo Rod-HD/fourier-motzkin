@@ -1,8 +1,0 @@
-{
-  "python.defaultInterpreterPath": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
-  "python.terminal.activateEnvironment": true,
-  "terminal.integrated.cwd": "${workspaceFolder}",
-  "claudeCode.env": {
-    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "100000"
-  }
-}

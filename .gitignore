@@ -1,8 +1,16 @@
+# IDE & tools
+.vscode/
+.claude/
+
+# Python
 .venv/
 __pycache__/
 *.pyc
 *.pyo
+
+# Output
 giai_trinh.txt
-*.txt.bak
+
+# Env
 .env
 flask_session/
