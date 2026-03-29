@@ -4,13 +4,12 @@ import io
 from datetime import datetime
 from typing import Any, Dict
 
-from flask import Flask, Response, jsonify, render_template, request, session
+from flask import Flask, Response, jsonify, render_template, request
 
 from solver.core import giai_bai_toan
 from solver.geometric import giai_hinh_hoc, xuat_file_hinh_hoc
 
 app = Flask(__name__)
-app.secret_key = "fm_solver_secret_2024"
 
 
 @app.route("/")
@@ -56,16 +55,7 @@ def solve() -> Response:
             method = "algebraic"
             result = giai_bai_toan(n, constraints, obj_coeffs, obj_type)
 
-        # Lưu vào session để export
-        session["last_result"] = result
-        session["last_input"] = {
-            "n": n,
-            "constraints": constraints,
-            "obj_coeffs": obj_coeffs,
-            "obj_type": obj_type
-        }
-        session["last_method"] = method
-
+        result["method"] = method
         return jsonify(result)
 
     except KeyError as e:
@@ -74,19 +64,24 @@ def solve() -> Response:
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/export")
+@app.route("/api/export", methods=["POST"])
 def export() -> Response:
     """Xuất giải trình ra file txt để tải về.
+
+    Body JSON:
+        result (dict): Kết quả từ /api/solve.
+        inp (dict): Input gốc (n, constraints, obj_coeffs, obj_type).
 
     Returns:
         File text "giai_trinh.txt".
     """
-    result = session.get("last_result")
-    inp = session.get("last_input")
-    method = session.get("last_method", "algebraic")
+    body: Dict[str, Any] = request.get_json(force=True) or {}
+    result = body.get("result")
+    inp = body.get("inp")
+    method = body.get("method", "algebraic")
 
     if not result or not inp:
-        return jsonify({"error": "Chưa có kết quả để xuất. Hãy giải bài toán trước."}), 400
+        return jsonify({"error": "Thiếu result hoặc inp trong body."}), 400
 
     if method == "geometric":
         content = xuat_file_hinh_hoc(result, inp)

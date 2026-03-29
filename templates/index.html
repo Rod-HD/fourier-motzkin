@@ -1154,7 +1154,7 @@ function renderExport(data) {
   const pane = document.getElementById('tab-export');
   pane.innerHTML = `
     <div class="exp-btns">
-      <a class="btn btn-navy" href="/api/export" download="giai_trinh.txt">📄 Tải file TXT</a>
+      <button class="btn btn-navy" onclick="downloadTxt()">📄 Tải file TXT</button>
       <button class="btn btn-ghost" onclick="copyJson()">📋 Copy JSON</button>
     </div>
     <div style="font-size:.8rem;color:var(--muted);margin-bottom:6px">Preview 25 dòng đầu:</div>
@@ -1162,17 +1162,42 @@ function renderExport(data) {
   loadPreview();
 }
 
+function buildExportBody() {
+  if (!lastResult || !lastPayload) return null;
+  return { result: lastResult, inp: lastPayload, method: lastResult.method || 'algebraic' };
+}
+
+async function downloadTxt() {
+  const body = buildExportBody();
+  if (!body) { showToast('Chưa có kết quả để xuất.'); return; }
+  const r = await fetch('/api/export', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = body.method === 'geometric' ? 'giai_trinh_hinh_hoc.txt' : 'giai_trinh.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function loadPreview() {
+  const body = buildExportBody();
+  const el = document.getElementById('expPrev');
+  if (!el) return;
+  if (!body) { el.textContent = 'Chưa có kết quả. Hãy giải bài toán trước.'; return; }
   try {
-    const r = await fetch('/api/export');
+    const r = await fetch('/api/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
     const txt = await r.text();
-    const el = document.getElementById('expPrev');
-    if (!el) return;
     const lines = txt.split('\n');
     el.textContent = lines.slice(0,25).join('\n') + (lines.length>25?'\n...':'');
   } catch(e) {
-    const el = document.getElementById('expPrev');
-    if (el) el.textContent = 'Không thể tải preview.';
+    el.textContent = 'Không thể tải preview.';
   }
 }
 
