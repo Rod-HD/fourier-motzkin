@@ -8,6 +8,7 @@ from flask import Flask, Response, jsonify, render_template, request
 
 from solver.core import giai_bai_toan
 from solver.geometric import giai_hinh_hoc, xuat_file_hinh_hoc
+from solver.parser import ConstraintTextParseError, parse_constraints_text
 
 app = Flask(__name__)
 
@@ -34,7 +35,13 @@ def solve() -> Response:
     try:
         data: Dict[str, Any] = request.get_json(force=True)
         n: int = int(data["n"])
-        constraints = data["constraints"]
+        if n < 1:
+            return jsonify({"error": "Sá»‘ biáº¿n pháº£i â‰¥ 1"}), 400
+        input_mode: str = data.get("input_mode", "form").lower()
+        if input_mode == "text":
+            constraints = parse_constraints_text(data.get("constraints_text", ""), n)
+        else:
+            constraints = data["constraints"]
         obj_coeffs = [float(v) for v in data["obj_coeffs"]]
         obj_type: str = data.get("obj_type", "max").lower()
 
@@ -55,11 +62,15 @@ def solve() -> Response:
             method = "algebraic"
             result = giai_bai_toan(n, constraints, obj_coeffs, obj_type)
 
+        result["parsed_constraints"] = constraints
+        result["input_mode"] = input_mode
         result["method"] = method
         return jsonify(result)
 
     except KeyError as e:
         return jsonify({"error": f"Thiếu trường: {e}"}), 400
+    except ConstraintTextParseError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -107,6 +118,7 @@ def export() -> Response:
     n = inp["n"]
     obj_type = inp["obj_type"]
     obj_coeffs = inp["obj_coeffs"]
+    export_constraints = inp.get("constraints") or result.get("parsed_constraints") or []
     var_names = result.get("var_names", [f"x{i+1}" for i in range(n)])
 
     obj_str = " + ".join(f"{obj_coeffs[i]}{var_names[i]}" for i in range(n))
@@ -114,7 +126,7 @@ def export() -> Response:
     lines.append(thin)
     lines.append(f"  {obj_type.upper()} z = {obj_str}")
     lines.append("  Ràng buộc:")
-    for c in inp["constraints"]:
+    for c in export_constraints:
         sense_map = {"<=": "≤", ">=": "≥", "=": "="}
         sign = sense_map.get(c["sense"], c["sense"])
         terms = []

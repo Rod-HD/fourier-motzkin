@@ -115,6 +115,13 @@ input[type=number]:focus{outline:none;border-color:var(--navy);
 .add-row:hover{background:var(--navy-xl)}
 .non-neg{display:flex;align-items:center;gap:7px;font-size:.83rem;color:var(--muted);cursor:pointer;margin-top:4px}
 .non-neg input{cursor:pointer;accent-color:var(--navy)}
+.input-mode-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.text-mode-box{display:none}
+.text-mode-box.show{display:block}
+.text-mode-help{font-size:.8rem;color:var(--muted);margin-bottom:6px}
+.text-mode-box textarea{width:100%;min-height:150px;resize:vertical;border:1px solid var(--border);
+  border-radius:6px;padding:10px 12px;font:13px/1.6 'Consolas','Courier New',monospace;background:#fff}
+.text-mode-box textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,35,126,.14)}
 
 /* ── ALERT ── */
 .alert{padding:11px 14px;border-radius:var(--r);font-size:.87rem;
@@ -307,11 +314,22 @@ footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
     <div class="card">
       <div class="card-hd">Ràng buộc</div>
       <div class="card-bd">
+        <div class="input-mode-toggle">
+          <span class="lbl">Kiểu nhập</span>
+          <div class="tog-wrap">
+            <button type="button" class="tog on" id="inputModeForm" onclick="setInputMode('form')">FORM</button>
+            <button type="button" class="tog" id="inputModeText" onclick="setInputMode('text')">TEXT</button>
+          </div>
+        </div>
+        <div id="textModeBox" class="text-mode-box">
+          <div class="text-mode-help">Mỗi dòng là 1 ràng buộc, ví dụ: <code>x1 + x2 &lt;= 4</code></div>
+          <textarea id="constraintsText" placeholder="x1 + x2 <= 4&#10;2^3 x1 + 1/3 x2 <= 5&#10;sin(pi/6)x1 + cos(pi/3)x2 >= 1/2"></textarea>
+        </div>
         <div id="cList"></div>
         <button class="add-row" onclick="addRow()">+ Thêm ràng buộc</button>
         <label class="non-neg">
           <input type="checkbox" id="nnCheck" checked>
-          Tự động thêm điều kiện không âm xᵢ ≥ 0
+            Tự động thêm điều kiện không âm xᵢ ≥ 0
         </label>
       </div>
     </div>
@@ -362,6 +380,7 @@ footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
 let N = 2;
 let objType = 'max';
 let currentMethod = 'algebraic';
+let inputMode = 'form';
 let chartInst = null;
 let lastResult = null;
 let lastPayload = null;
@@ -388,6 +407,16 @@ function selectMethod(m) {
   currentMethod = m;
   document.getElementById('btn-algebraic').classList.toggle('active', m === 'algebraic');
   document.getElementById('btn-geometric').classList.toggle('active', m === 'geometric');
+}
+
+function setInputMode(mode) {
+  inputMode = mode;
+  document.getElementById('inputModeForm').classList.toggle('on', mode === 'form');
+  document.getElementById('inputModeText').classList.toggle('on', mode === 'text');
+  document.getElementById('textModeBox').classList.toggle('show', mode === 'text');
+  document.getElementById('cList').style.display = mode === 'form' ? '' : 'none';
+  document.querySelector('.add-row').style.display = mode === 'form' ? 'flex' : 'none';
+  document.querySelector('.non-neg').style.display = mode === 'form' ? 'flex' : 'none';
 }
 
 /* ════════════════════════════════════════════════
@@ -527,6 +556,7 @@ function addRow(coeffs, sense, rhs) {
 function loadExample() {
   N = 2;
   document.getElementById('nInput').value = 2;
+  setInputMode('form');
   setObjType('min');
   renderForm(2);
   const oi = document.querySelectorAll('.o-inp');
@@ -535,6 +565,13 @@ function loadExample() {
   addRow([2,1],'<=',6); addRow([1,1],'>=',2);
   addRow([-1,1],'>=',3);
   addRow([-1,0],'<=',0); addRow([0,-1],'<=',0);
+  document.getElementById('constraintsText').value = [
+    '2x1 + x2 <= 6',
+    'x1 + x2 >= 2',
+    '-x1 + x2 >= 3',
+    '-x1 <= 0',
+    '-x2 <= 0'
+  ].join('\n');
   document.getElementById('nnCheck').checked = false;
   previewObjective();
 }
@@ -542,8 +579,10 @@ function loadExample() {
 function resetForm() {
   N = 2;
   document.getElementById('nInput').value = 2;
+  setInputMode('form');
   setObjType('max'); renderForm(2);
   document.getElementById('cList').innerHTML = '';
+  document.getElementById('constraintsText').value = '';
   document.getElementById('nnCheck').checked = true;
   previewObjective();
   document.getElementById('resultSec').style.display = 'none';
@@ -560,6 +599,15 @@ function resetForm() {
 function collectInput() {
   const n = N;
   const obj_coeffs = [...document.querySelectorAll('.o-inp')].map(i => parseFloat(i.value) || 0);
+  if (inputMode === 'text') {
+    return {
+      n,
+      obj_coeffs,
+      obj_type: objType,
+      input_mode: 'text',
+      constraints_text: document.getElementById('constraintsText').value
+    };
+  }
   const constraints = [];
   document.querySelectorAll('.c-row').forEach(row => {
     const coeffs = [...row.querySelectorAll('.coeffs-sec .c-inp')].map(i => parseFloat(i.value) || 0);
@@ -573,7 +621,7 @@ function collectInput() {
       constraints.push({ coeffs: c, sense: '<=', rhs: 0 });
     }
   }
-  return { n, constraints, obj_coeffs, obj_type: objType };
+  return { n, constraints, obj_coeffs, obj_type: objType, input_mode: 'form' };
 }
 
 /* ════════════════════════════════════════════════
@@ -599,6 +647,42 @@ async function submitSolve() {
     renderKetQua(data);
   } catch(e) { showErr('Lỗi kết nối: ' + e.message); }
   finally {
+    document.getElementById('solveLbl').textContent = '▶ GIẢI';
+    document.getElementById('solveSpin').style.display = 'none';
+    document.getElementById('solveBtn').disabled = false;
+  }
+}
+
+async function submitSolveLegacy() {
+  const payload = collectInput();
+  payload.method = currentMethod;
+  if (payload.input_mode === 'text') {
+    if (!payload.constraints_text || !payload.constraints_text.trim()) {
+      showErr('Hãy nhập ít nhất một ràng buộc ở ô text.');
+      return;
+    }
+  } else if (!payload.constraints.length) {
+    showErr('Hãy thêm ít nhất một ràng buộc.');
+    return;
+  }
+
+  document.getElementById('solveLbl').textContent = 'Đang giải...';
+  document.getElementById('solveSpin').style.display = 'block';
+  document.getElementById('solveBtn').disabled = true;
+
+  try {
+    const resp = await fetch('/api/solve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) { showErr('Lỗi: ' + data.error); return; }
+    lastResult = data;
+    lastPayload = { ...payload, constraints: data.parsed_constraints || payload.constraints || [] };
+    renderKetQua(data);
+  } catch (e) {
+    showErr('Lỗi kết nối: ' + e.message);
+  } finally {
     document.getElementById('solveLbl').textContent = '▶ GIẢI';
     document.getElementById('solveSpin').style.display = 'none';
     document.getElementById('solveBtn').disabled = false;
