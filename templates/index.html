@@ -915,6 +915,10 @@ function renderChart(data) {
   const optArr = verts.filter(v => v.is_optimal);
   const infArr = verts.filter(v => !v.feasible);
   const optV   = optArr.length ? optArr[0] : null;
+  const chartZ = typeof data.z_numeric === 'number'
+    ? data.z_numeric
+    : (typeof data.z === 'number' ? data.z : null);
+  const chartZLabel = chartZ != null ? fmt(chartZ) : (data.z ?? '?');
 
   const allX = verts.map(v => v.point[0]).concat([0]);
   const allY = verts.map(v => v.point[1]).concat([0]);
@@ -951,10 +955,10 @@ function renderChart(data) {
   const oc = lastPayload ? lastPayload.obj_coeffs : null;
   if (oc && (Math.abs(oc[0])>1e-12 || Math.abs(oc[1])>1e-12)) {
     // Đường mức tối ưu z* (cam đậm, tĩnh)
-    if (optV && data.z != null) {
-      const pZS = lineClip(oc[0], oc[1], data.z, xMax, yMax);
+    if (optV && chartZ != null) {
+      const pZS = lineClip(oc[0], oc[1], chartZ, xMax, yMax);
       if (pZS.length >= 2)
-        datasets.push({ type:'line', label:`z* = ${data.z} (tối ưu)`, data:pZS,
+        datasets.push({ type:'line', label:`z* = ${chartZLabel} (tối ưu)`, data:pZS,
           borderColor:'#FF6F00', borderWidth:2.5, borderDash:[8,4],
           pointRadius:0, fill:false, tension:0, order:7 });
     }
@@ -973,7 +977,7 @@ function renderChart(data) {
       pointRadius:6, pointHoverRadius:8, order:2 });
 
   if (optV)
-    datasets.push({ type:'scatter', label:`★ Tối ưu (z=${data.z})`,
+    datasets.push({ type:'scatter', label:`★ Tối ưu (z=${chartZLabel})`,
       data:[{x:optV.point[0],y:optV.point[1],z:optV.z,lbl:'★ '+(optV.label||'')}],
       backgroundColor:'#1976D2', borderColor:'#FFD600',
       borderWidth:3, pointRadius:8, pointHoverRadius:10, order:1 });

@@ -2,15 +2,25 @@
 
 import io
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from flask import Flask, Response, jsonify, render_template, request
 
-from solver.core import giai_bai_toan
+from solver.core import dinh_dang_rang_buoc, format_objective_expression, giai_bai_toan
+from solver.exact import constraint_to_exact, constraint_to_numeric, to_exact_number, to_float_number
 from solver.geometric import giai_hinh_hoc, xuat_file_hinh_hoc
 from solver.parser import ConstraintTextParseError, parse_constraints_text
 
 app = Flask(__name__)
+
+
+def _var_names(n: int) -> List[str]:
+    return [f"x{i + 1}" for i in range(n)]
+
+
+def _build_input_display(constraints_exact: List[Dict[str, Any]], n: int) -> List[str]:
+    var_names = _var_names(n)
+    return [dinh_dang_rang_buoc(c, var_names) for c in constraints_exact]
 
 
 @app.route("/")
@@ -21,48 +31,54 @@ def index() -> str:
 
 @app.route("/api/solve", methods=["POST"])
 def solve() -> Response:
-    """Nhận bài toán LP và trả về kết quả giải.
-
-    Body JSON:
-        n (int): Số biến.
-        constraints (list): Danh sách ràng buộc.
-        obj_coeffs (list): Hệ số hàm mục tiêu.
-        obj_type (str): "max" hoặc "min".
-
-    Returns:
-        JSON kết quả hoặc {"error": "..."}.
-    """
+    """Nhận bài toán LP và trả về kết quả giải."""
     try:
-        data: Dict[str, Any] = request.get_json(force=True)
-        n: int = int(data["n"])
-        if n < 1:
-            return jsonify({"error": "Sá»‘ biáº¿n pháº£i â‰¥ 1"}), 400
-        input_mode: str = data.get("input_mode", "form").lower()
-        if input_mode == "text":
-            constraints = parse_constraints_text(data.get("constraints_text", ""), n)
-        else:
-            constraints = data["constraints"]
-        obj_coeffs = [float(v) for v in data["obj_coeffs"]]
-        obj_type: str = data.get("obj_type", "max").lower()
-
-        # Validate
+        data: Dict[str, Any] = request.get_json(force=True) or {}
+        n = int(data["n"])
         if n < 1:
             return jsonify({"error": "Số biến phải ≥ 1"}), 400
-        if len(obj_coeffs) != n:
+
+        input_mode = data.get("input_mode", "form").lower()
+        raw_constraints = (
+            parse_constraints_text(data.get("constraints_text", ""), n)
+            if input_mode == "text"
+            else data["constraints"]
+        )
+        obj_type = data.get("obj_type", "max").lower()
+        method = data.get("method", "algebraic").lower()
+
+        constraints_exact = [constraint_to_exact(c) for c in raw_constraints]
+        constraints_numeric = [constraint_to_numeric(c) for c in raw_constraints]
+        obj_coeffs_exact = [to_exact_number(v) for v in data["obj_coeffs"]]
+        obj_coeffs_numeric = [to_float_number(v) for v in data["obj_coeffs"]]
+
+        if len(obj_coeffs_exact) != n:
             return jsonify({"error": "Số hệ số hàm mục tiêu phải bằng số biến"}), 400
-        for c in constraints:
+        for c in constraints_exact:
             if len(c["coeffs"]) != n:
                 return jsonify({"error": "Số hệ số ràng buộc phải bằng số biến"}), 400
 
-        method: str = data.get("method", "algebraic").lower()
-
         if method == "geometric":
-            result = giai_hinh_hoc(n, constraints, obj_coeffs, obj_type)
+            result = giai_hinh_hoc(n, constraints_numeric, obj_coeffs_numeric, obj_type)
         else:
             method = "algebraic"
-            result = giai_bai_toan(n, constraints, obj_coeffs, obj_type)
+            result = giai_bai_toan(n, constraints_exact, obj_coeffs_exact, obj_type)
 
-        result["parsed_constraints"] = constraints
+        if "z_numeric" not in result and result.get("z") is not None and isinstance(result.get("z"), (int, float)):
+            result["z_numeric"] = float(result["z"])
+
+        result["parsed_constraints"] = constraints_numeric
+        result["parsed_constraints_exact"] = [
+            {
+                "coeffs": [str(v) for v in c["coeffs"]],
+                "rhs": str(c["rhs"]),
+                "sense": c["sense"],
+            }
+            for c in constraints_exact
+        ]
+        result["input_constraints_display"] = _build_input_display(constraints_exact, n)
+        result["obj_expr_display"] = format_objective_expression(obj_coeffs_exact, n)
+        result["obj_coeffs_numeric"] = obj_coeffs_numeric
         result["input_mode"] = input_mode
         result["method"] = method
         return jsonify(result)
@@ -70,29 +86,23 @@ def solve() -> Response:
     except KeyError as e:
         return jsonify({"error": f"Thiếu trường: {e}"}), 400
     except ConstraintTextParseError as e:
-        return jsonify({
-            "error": e.message,
-            "details": [
-                f"Dòng {e.line_number}",
-                f"Nội dung: {e.line_text or '(trống)'}",
-                f"Gợi ý: {e.hint}",
-            ],
-        }), 400
+        return jsonify(
+            {
+                "error": e.message,
+                "details": [
+                    f"Dòng {e.line_number}",
+                    f"Nội dung: {e.line_text or '(trống)'}",
+                    f"Gợi ý: {e.hint}",
+                ],
+            }
+        ), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/export", methods=["POST"])
 def export() -> Response:
-    """Xuất giải trình ra file txt để tải về.
-
-    Body JSON:
-        result (dict): Kết quả từ /api/solve.
-        inp (dict): Input gốc (n, constraints, obj_coeffs, obj_type).
-
-    Returns:
-        File text "giai_trinh.txt".
-    """
+    """Xuất giải trình ra file txt để tải về."""
     body: Dict[str, Any] = request.get_json(force=True) or {}
     result = body.get("result")
     inp = body.get("inp")
@@ -107,58 +117,40 @@ def export() -> Response:
         return Response(
             buf.getvalue(),
             mimetype="text/plain; charset=utf-8",
-            headers={"Content-Disposition": "attachment; filename=giai_trinh_hinh_hoc.txt"}
+            headers={"Content-Disposition": "attachment; filename=giai_trinh_hinh_hoc.txt"},
         )
 
-    lines = []
+    lines: List[str] = []
     sep = "=" * 60
     thin = "-" * 60
 
-    # Header
     lines.append(sep)
-    lines.append("  FOURIER-MOTZKIN LP SOLVER — GIẢI TRÌNH CHI TIẾT")
+    lines.append("  FOURIER-MOTZKIN LP SOLVER - GIẢI TRÌNH CHI TIẾT")
     lines.append(f"  Ngày giờ: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(sep)
     lines.append("")
 
-    # Thông tin bài toán
-    n = inp["n"]
+    n = int(inp["n"])
     obj_type = inp["obj_type"]
-    obj_coeffs = inp["obj_coeffs"]
-    export_constraints = inp.get("constraints") or result.get("parsed_constraints") or []
-    var_names = result.get("var_names", [f"x{i+1}" for i in range(n)])
+    var_names = result.get("var_names", _var_names(n))
+    obj_str = result.get("obj_expr_display") or format_objective_expression(
+        [to_exact_number(v) for v in inp.get("obj_coeffs", [])], n
+    )
+    constraint_lines = result.get("input_constraints_display")
+    if not constraint_lines:
+        export_constraints = inp.get("constraints") or result.get("parsed_constraints") or []
+        constraint_lines = [
+            dinh_dang_rang_buoc(constraint_to_exact(c), var_names) for c in export_constraints
+        ]
 
-    obj_str = " + ".join(f"{obj_coeffs[i]}{var_names[i]}" for i in range(n))
     lines.append("BÀI TOÁN ĐẦU VÀO")
     lines.append(thin)
     lines.append(f"  {obj_type.upper()} z = {obj_str}")
     lines.append("  Ràng buộc:")
-    for c in export_constraints:
-        sense_map = {"<=": "≤", ">=": "≥", "=": "="}
-        sign = sense_map.get(c["sense"], c["sense"])
-        terms = []
-        for i, coef in enumerate(c["coeffs"]):
-            if coef == 0:
-                continue
-            coef_str = int(coef) if coef == int(coef) else coef
-            if coef == 1:
-                terms.append(var_names[i])
-            elif coef == -1:
-                terms.append(f"-{var_names[i]}")
-            else:
-                terms.append(f"{coef_str}{var_names[i]}")
-        if not terms:
-            lhs = "0"
-        else:
-            lhs = terms[0]
-            for t in terms[1:]:
-                lhs += f" - {t[1:]}" if t.startswith("-") else f" + {t}"
-        rhs = c["rhs"]
-        rhs_str = int(rhs) if rhs == int(rhs) else rhs
-        lines.append(f"    {lhs} {sign} {rhs_str}")
+    for line in constraint_lines:
+        lines.append(f"    {line}")
     lines.append("")
 
-    # Các bước Fourier-Motzkin
     lines.append("CÁC BƯỚC FOURIER-MOTZKIN")
     lines.append(thin)
     for step in result.get("steps_constraints", []):
@@ -166,12 +158,11 @@ def export() -> Response:
         for cs in step["constraints"]:
             lines.append(f"    • {cs}")
         if step.get("bi_loai"):
-            lines.append(f"  → Đã loại: {', '.join(step['bi_loai'])}")
+            lines.append(f"  -> Đã loại: {', '.join(step['bi_loai'])}")
         if step.get("moi_tao"):
-            lines.append(f"  → Mới tạo: {', '.join(step['moi_tao'])}")
+            lines.append(f"  -> Mới tạo: {', '.join(step['moi_tao'])}")
     lines.append("")
 
-    # Reasoning chi tiết
     lines.append("REASONING CHI TIẾT")
     lines.append(thin)
     reasoning = result.get("reasoning", {})
@@ -185,11 +176,10 @@ def export() -> Response:
             lines.append(f"      Kết quả: {s['ket_qua']}")
     lines.append("")
 
-    # Kết quả cuối
     lines.append("KẾT QUẢ")
     lines.append(thin)
     if result.get("feasible"):
-        lines.append(f"  Khả thi: CÓ")
+        lines.append("  Khả thi: CÓ")
         for var, val in result.get("solution", {}).items():
             lines.append(f"  {var} = {val}")
         lines.append(f"  z* = {result.get('z')}")
@@ -203,7 +193,7 @@ def export() -> Response:
     return Response(
         buf.getvalue(),
         mimetype="text/plain; charset=utf-8",
-        headers={"Content-Disposition": "attachment; filename=giai_trinh.txt"}
+        headers={"Content-Disposition": "attachment; filename=giai_trinh.txt"},
     )
 
 

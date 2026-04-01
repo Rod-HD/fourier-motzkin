@@ -15,6 +15,8 @@ from sympy.parsing.sympy_parser import (
 )
 from sympy.polys.polyerrors import PolynomialError
 
+from solver.exact import to_exact_number
+
 
 TRANSFORMATIONS = standard_transformations + (implicit_multiplication_application,)
 COMPARATOR_PATTERN = re.compile(r"(<=|>=|=)")
@@ -146,8 +148,8 @@ def _parse_constraint_line(
 
     _ensure_linear(poly, line, line_number, len(variables))
 
-    coeffs = [float(poly.coeff_monomial(var)) for var in variables]
-    rhs = float(-poly.coeff_monomial(1))
+    coeffs = [to_exact_number(poly.coeff_monomial(var)) for var in variables]
+    rhs = to_exact_number(-poly.coeff_monomial(1))
     return {"coeffs": coeffs, "sense": sense, "rhs": rhs}
 
 

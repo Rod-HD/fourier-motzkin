@@ -621,3 +621,20 @@ def giai_bai_toan(
         "var_names": var_names,
         "n": n,
     }
+
+
+from solver.core_exact import (  # noqa: E402,F401
+    Constraint,
+    back_substitute_FM,
+    chuan_hoa_he,
+    co_lap_bien,
+    dinh_dang_rang_buoc,
+    format_objective_expression,
+    ghep_cap_FM,
+    giai_bai_toan,
+    kiem_tra_nghiem,
+    serialize_constraint_exact,
+    ten_bien,
+    them_bien_z,
+    tim_z_max,
+)
