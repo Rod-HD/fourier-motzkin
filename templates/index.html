@@ -118,10 +118,24 @@ input[type=number]:focus{outline:none;border-color:var(--navy);
 .input-mode-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
 .text-mode-box{display:none}
 .text-mode-box.show{display:block}
+.text-mode-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(240px,1fr);gap:12px;align-items:start}
 .text-mode-help{font-size:.8rem;color:var(--muted);margin-bottom:6px}
 .text-mode-box textarea{width:100%;min-height:150px;resize:vertical;border:1px solid var(--border);
   border-radius:6px;padding:10px 12px;font:13px/1.6 'Consolas','Courier New',monospace;background:#fff}
 .text-mode-box textarea:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 3px rgba(26,35,126,.14)}
+.help-card{border:1px solid var(--border);border-radius:6px;background:#fafbfe;padding:10px 12px}
+.help-card summary{cursor:pointer;font-weight:700;color:var(--navy);list-style:none}
+.help-card summary::-webkit-details-marker{display:none}
+.help-card summary::after{content:'+';float:right;color:var(--navy-l)}
+.help-card[open] summary::after{content:'–'}
+.help-card-body{margin-top:8px;font-size:.8rem;color:var(--muted)}
+.help-card-body p{margin-bottom:6px}
+.help-card-body ul{margin:0 0 8px 18px}
+.help-card-body li{margin-bottom:4px}
+.help-card-body code{font-family:'Consolas','Courier New',monospace;background:#eef1fb;padding:1px 4px;border-radius:4px}
+.help-examples{white-space:pre-line;background:#fff;border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--txt)}
+.err-list{margin:6px 0 0 18px}
+.err-list li{margin-bottom:4px}
 
 /* ── ALERT ── */
 .alert{padding:11px 14px;border-radius:var(--r);font-size:.87rem;
@@ -261,6 +275,7 @@ footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
   .sol-chip{min-width:58px;padding:5px 10px}
   .tb-sep{display:none}
   #solveBtn{font-size:.9rem}
+  .text-mode-layout{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -323,7 +338,22 @@ footer{text-align:center;padding:14px;font-size:.76rem;color:var(--muted);
         </div>
         <div id="textModeBox" class="text-mode-box">
           <div class="text-mode-help">Mỗi dòng là 1 ràng buộc, ví dụ: <code>x1 + x2 &lt;= 4</code></div>
-          <textarea id="constraintsText" placeholder="x1 + x2 <= 4&#10;2^3 x1 + 1/3 x2 <= 5&#10;sin(pi/6)x1 + cos(pi/3)x2 >= 1/2"></textarea>
+          <textarea id="constraintsText" placeholder="x1 + x2 <= 4&#10;2^3 x1 + 1/3 x2 <= 5&#10;sin(pi/6)x1 + cos(pi/3)x2 >= 1/2&#10;sqrt(2)x1 - tan(pi/4)x2 = 3"></textarea>
+          <details class="help-card" style="margin-top:10px">
+            <summary>Hướng dẫn cú pháp</summary>
+            <div class="help-card-body">
+              <p>Ví dụ hợp lệ:</p>
+              <div class="help-examples">x1 + x2 &lt;= 4
+2^3 x1 + 1/3 x2 &lt;= 5
+sin(pi/6)x1 + cos(pi/3)x2 &gt;= 1/2
+sqrt(2)x1 - tan(pi/4)x2 = 3</div>
+              <ul>
+                <li>Cho phép <code>^</code> trong hệ số, ví dụ <code>2^3 x1</code>.</li>
+                <li>Cho phép <code>sin</code>, <code>cos</code>, <code>tan</code>, <code>cot</code>, <code>sqrt</code>, <code>pi</code> trong hệ số.</li>
+                <li>Không cho <code>x1^2</code>, <code>x1*x2</code>, <code>sin(x1)</code>.</li>
+              </ul>
+            </div>
+          </details>
         </div>
         <div id="cList"></div>
         <button class="add-row" onclick="addRow()">+ Thêm ràng buộc</button>
@@ -627,7 +657,7 @@ function collectInput() {
 /* ════════════════════════════════════════════════
    submitSolve()
 ════════════════════════════════════════════════ */
-async function submitSolve() {
+async function submitSolveTableModeOnly() {
   const payload = collectInput();
   payload.method = currentMethod;
   if (!payload.constraints.length) { showErr('Hãy thêm ít nhất một ràng buộc.'); return; }
@@ -653,7 +683,7 @@ async function submitSolve() {
   }
 }
 
-async function submitSolveLegacy() {
+async function submitSolveOld() {
   const payload = collectInput();
   payload.method = currentMethod;
   if (payload.input_mode === 'text') {
@@ -689,13 +719,18 @@ async function submitSolveLegacy() {
   }
 }
 
-function showErr(msg) {
+function showErr(err) {
+  const payload = typeof err === 'string' ? { error: err } : (err || {});
+  const details = Array.isArray(payload.details) ? payload.details : [];
+  const detailsHtml = details.length
+    ? `<ul class="err-list">${details.map(item => `<li>${esc(item)}</li>`).join('')}</ul>`
+    : '';
   const sec = document.getElementById('resultSec');
   sec.style.display = 'block';
   document.getElementById('resultCard').innerHTML =
     `<div class="card-bd"><div class="alert alert-err">
       <span class="alert-icon">⚠️</span>
-      <div>${esc(msg)}</div></div></div>`;
+      <div><div>${esc(payload.error || 'Có lỗi xảy ra.')}</div>${detailsHtml}</div></div></div>`;
   ['fm','chart','reasoning','export'].forEach(t =>
     document.getElementById('tab-' + t).innerHTML = '');
   sec.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -704,6 +739,46 @@ function showErr(msg) {
 /* ════════════════════════════════════════════════
    renderKetQua(data)
 ════════════════════════════════════════════════ */
+async function submitSolve() {
+  const payload = collectInput();
+  payload.method = currentMethod;
+  if (payload.input_mode === 'text') {
+    if (!payload.constraints_text || !payload.constraints_text.trim()) {
+      showErr({ error: 'Hãy nhập ít nhất một ràng buộc ở ô text.' });
+      return;
+    }
+  } else if (!payload.constraints.length) {
+    showErr({ error: 'Hãy thêm ít nhất một ràng buộc.' });
+    return;
+  }
+
+  document.getElementById('solveLbl').textContent = 'Đang giải...';
+  document.getElementById('solveSpin').style.display = 'block';
+  document.getElementById('solveBtn').disabled = true;
+
+  try {
+    const resp = await fetch('/api/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (data.error) {
+      showErr(data);
+      return;
+    }
+    lastResult = data;
+    lastPayload = { ...payload, constraints: data.parsed_constraints || payload.constraints || [] };
+    renderKetQua(data);
+  } catch (e) {
+    showErr({ error: 'Lỗi kết nối: ' + e.message });
+  } finally {
+    document.getElementById('solveLbl').textContent = '▶ GIẢI';
+    document.getElementById('solveSpin').style.display = 'none';
+    document.getElementById('solveBtn').disabled = false;
+  }
+}
+
 function renderKetQua(data) {
   const sec = document.getElementById('resultSec');
   sec.style.display = 'block';

@@ -70,7 +70,14 @@ def solve() -> Response:
     except KeyError as e:
         return jsonify({"error": f"Thiếu trường: {e}"}), 400
     except ConstraintTextParseError as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({
+            "error": e.message,
+            "details": [
+                f"Dòng {e.line_number}",
+                f"Nội dung: {e.line_text or '(trống)'}",
+                f"Gợi ý: {e.hint}",
+            ],
+        }), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
