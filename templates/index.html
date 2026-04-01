@@ -654,83 +654,18 @@ function collectInput() {
   return { n, constraints, obj_coeffs, obj_type: objType, input_mode: 'form' };
 }
 
-/* ════════════════════════════════════════════════
-   submitSolve()
-════════════════════════════════════════════════ */
-async function submitSolveTableModeOnly() {
-  const payload = collectInput();
-  payload.method = currentMethod;
-  if (!payload.constraints.length) { showErr('Hãy thêm ít nhất một ràng buộc.'); return; }
-
-  document.getElementById('solveLbl').textContent = 'Đang giải...';
-  document.getElementById('solveSpin').style.display = 'block';
-  document.getElementById('solveBtn').disabled = true;
-
-  try {
-    const resp = await fetch('/api/solve', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await resp.json();
-    if (data.error) { showErr('Lỗi: ' + data.error); return; }
-    lastResult = data; lastPayload = payload;
-    renderKetQua(data);
-  } catch(e) { showErr('Lỗi kết nối: ' + e.message); }
-  finally {
-    document.getElementById('solveLbl').textContent = '▶ GIẢI';
-    document.getElementById('solveSpin').style.display = 'none';
-    document.getElementById('solveBtn').disabled = false;
-  }
-}
-
-async function submitSolveOld() {
-  const payload = collectInput();
-  payload.method = currentMethod;
-  if (payload.input_mode === 'text') {
-    if (!payload.constraints_text || !payload.constraints_text.trim()) {
-      showErr('Hãy nhập ít nhất một ràng buộc ở ô text.');
-      return;
-    }
-  } else if (!payload.constraints.length) {
-    showErr('Hãy thêm ít nhất một ràng buộc.');
-    return;
-  }
-
-  document.getElementById('solveLbl').textContent = 'Đang giải...';
-  document.getElementById('solveSpin').style.display = 'block';
-  document.getElementById('solveBtn').disabled = true;
-
-  try {
-    const resp = await fetch('/api/solve', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await resp.json();
-    if (data.error) { showErr('Lỗi: ' + data.error); return; }
-    lastResult = data;
-    lastPayload = { ...payload, constraints: data.parsed_constraints || payload.constraints || [] };
-    renderKetQua(data);
-  } catch (e) {
-    showErr('Lỗi kết nối: ' + e.message);
-  } finally {
-    document.getElementById('solveLbl').textContent = '▶ GIẢI';
-    document.getElementById('solveSpin').style.display = 'none';
-    document.getElementById('solveBtn').disabled = false;
-  }
-}
-
 function showErr(err) {
   const payload = typeof err === 'string' ? { error: err } : (err || {});
   const details = Array.isArray(payload.details) ? payload.details : [];
   const detailsHtml = details.length
-    ? `<ul class="err-list">${details.map(item => `<li>${esc(item)}</li>`).join('')}</ul>`
+    ? `<div style="margin-top:6px;font-weight:700">Chi tiết:</div><ul class="err-list">${details.map(item => `<li>${esc(item)}</li>`).join('')}</ul>`
     : '';
   const sec = document.getElementById('resultSec');
   sec.style.display = 'block';
   document.getElementById('resultCard').innerHTML =
     `<div class="card-bd"><div class="alert alert-err">
       <span class="alert-icon">⚠️</span>
-      <div><div>${esc(payload.error || 'Có lỗi xảy ra.')}</div>${detailsHtml}</div></div></div>`;
+      <div><div style="font-weight:700">Không thể xử lý input</div><div>${esc(payload.error || 'Có lỗi xảy ra.')}</div>${detailsHtml}</div></div></div>`;
   ['fm','chart','reasoning','export'].forEach(t =>
     document.getElementById('tab-' + t).innerHTML = '');
   sec.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -795,7 +730,7 @@ function renderKetQua(data) {
     const chips = (data.var_names || []).map(v =>
       `<div class="sol-chip">
         <span class="sc-lbl">${esc(v)}</span>
-        <span class="sc-val">${data.solution[v]}</span>
+        <span class="sc-val">${data.solution?.[v] ?? data.solution_numeric?.[v] ?? ''}</span>
       </div>`).join('');
     card.innerHTML = `<div class="card-bd">
       <div class="alert alert-ok" style="margin-bottom:10px">
@@ -806,7 +741,7 @@ function renderKetQua(data) {
         ${chips}
         <div class="sol-chip zopt">
           <span class="sc-lbl">z* (${esc(data.obj_type)})</span>
-          <span class="sc-val">${data.z}</span>
+          <span class="sc-val">${data.z ?? data.z_numeric ?? ''}</span>
         </div>
       </div></div>`;
   }
