@@ -11,5 +11,6 @@ __pycache__/
 giai_trinh.txt
 
 # Env
+.venv
 .env
 flask_session/

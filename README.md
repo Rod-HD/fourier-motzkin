@@ -4,7 +4,7 @@
 **Khử Fourier-Motzkin** (đại số, hoạt động cho mọi số biến) và **Hình học** (cho bài toán 2 biến,
 trực quan bằng đồ thị).
 
-Đồ án môn **CS112 — Phân tích và Thiết kế Thuật toán**.
+Bài tập lớn môn **CS112 — Phân tích và Thiết kế Thuật toán**.
 
 ---
 
@@ -29,7 +29,7 @@ trực quan bằng đồ thị).
 
 - 🎯 **Hai phương pháp giải**
   - **Đại số (Fourier-Motzkin)**: khử lần lượt từng biến `x₁, x₂, …, xₙ`, tìm `z*` rồi back-substitute để khôi phục nghiệm. Hoạt động với mọi số biến.
-  - **Hình học**: liệt kê các đỉnh khả thi của đa giác miền nghiệm trong mặt phẳng `Ox₁x₂`, tính `z` tại từng đỉnh để xác định điểm tối ưu (chỉ cho `n = 2`).
+  - **Hình học**: liệt kê các đỉnh khả thi của đa giác miền nghiệm trong mặt phẳng `Ox₁x₂`, tính `z` tại từng đỉnh để xác định điểm tối ưu (chỉ cho `n = 2`). Trên UI, đường mức `z = const` được biểu diễn dưới dạng có thể **kéo (drag)** dọc theo vector gradient `∇z = (c₁, c₂)` — hướng `z` tăng với bài toán `max`, hoặc hướng `−∇z` (`z` giảm) với bài toán `min`. **Điểm chạm cuối cùng** giữa đường mức và miền khả thi trong quá trình kéo chính là **điểm nghiệm tối ưu**.
 
 - 🔢 **Tính toán chính xác (exact arithmetic)**
   - Sử dụng `sympy` để giữ hệ số ở dạng phân số / căn / hằng số ký hiệu (`Rational`, `sqrt`, `pi`, …).
@@ -46,7 +46,7 @@ trực quan bằng đồ thị).
 
 - 📊 **Trực quan hóa** (cho bài toán 2 biến)
   - Vẽ các đường biên ràng buộc, miền khả thi (convex polygon), các đỉnh, đường mức `z = const`.
-  - Đánh dấu hướng tịnh tiến đường mức (về phía tăng/giảm `z`).
+  - **Đường mức kéo được**: người dùng có thể dùng chuột kéo trượt đường mức dọc theo vector gradient `∇z = (c₁, c₂)`. Với `max`, kéo theo hướng `z` tăng; với `min`, kéo theo hướng `z` giảm. Vị trí mà đường mức **chạm vào miền khả thi lần cuối** trước khi rời khỏi chính là **điểm tối ưu** — minh hoạ trực quan định lý điểm cực biên.
 
 - 📥 **Xuất giải trình**
   - Tải file `.txt` chứa toàn bộ bài toán đầu vào, các bước giải, reasoning chi tiết và kết quả.
