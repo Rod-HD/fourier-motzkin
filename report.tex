@@ -1,0 +1,1160 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+\usepackage{geometry}
+\geometry{top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
+
+% ── Màu sắc ───────────────────────────────────────────────────────────────
+\definecolor{navyblue}{RGB}{26,35,126}
+\definecolor{codegreen}{RGB}{46,125,50}
+\definecolor{codegray}{RGB}{128,128,128}
+\definecolor{codepurple}{RGB}{106,27,154}
+\definecolor{backcolor}{RGB}{245,245,250}
+\definecolor{lightblue}{RGB}{232,234,246}
+
+% ── Listing style ─────────────────────────────────────────────────────────
+\lstdefinestyle{pythonstyle}{
+    backgroundcolor=\color{backcolor},
+    commentstyle=\color{codegray}\itshape,
+    keywordstyle=\color{navyblue}\bfseries,
+    stringstyle=\color{codegreen},
+    numberstyle=\tiny\color{codegray},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=4,
+    frame=single,
+    rulecolor=\color{navyblue!30},
+    language=Python
+}
+\lstset{style=pythonstyle}
+
+% ── Hyperref setup ────────────────────────────────────────────────────────
+\hypersetup{
+    colorlinks=true,
+    linkcolor=navyblue,
+    urlcolor=navyblue,
+    citecolor=navyblue,
+    pdftitle={Báo cáo Bài tập lớn: Thuật toán Fourier-Motzkin},
+    pdfauthor={Sinh viên}
+}
+
+% ── Header/Footer ─────────────────────────────────────────────────────────
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{navyblue}{\textbf{CS112 -- Phân tích và Thiết kế Thuật toán}}}
+\fancyhead[R]{\small\textcolor{navyblue}{Fourier-Motzkin LP Solver}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Section format ────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries\color{navyblue}}{{\thesection.}}{0.5em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{navyblue!80}}{{\thesubsection.}}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{navyblue!60}}{{\thesubsubsection.}}{0.5em}{}
+
+% ── Theorem environments ──────────────────────────────────────────────────
+\theoremstyle{definition}
+\newtheorem{definition}{Định nghĩa}[section]
+\newtheorem{theorem}{Định lý}[section]
+\newtheorem{lemma}{Bổ đề}[section]
+\newtheorem{example}{Ví dụ}[section]
+\newtheorem{remark}{Nhận xét}[section]
+
+% ── tcolorbox styles ──────────────────────────────────────────────────────
+\tcbuselibrary{skins, breakable}
+\newtcolorbox{infobox}[1][]{
+    colback=lightblue, colframe=navyblue, fonttitle=\bfseries,
+    title=#1, breakable
+}
+\newtcolorbox{resultbox}[1][]{
+    colback=green!5, colframe=codegreen, fonttitle=\bfseries,
+    title=#1, breakable
+}
+
+% ── Macros ────────────────────────────────────────────────────────────────
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\FM}{\textsc{Fourier-Motzkin}}
+\newcommand{\vx}{\mathbf{x}}
+\newcommand{\vc}{\mathbf{c}}
+\newcommand{\vb}{\mathbf{b}}
+\newcommand{\mA}{\mathbf{A}}
+
+% ══════════════════════════════════════════════════════════════════════════
+\begin{document}
+% ══════════════════════════════════════════════════════════════════════════
+
+% ── Trang bìa ─────────────────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\Large\bfseries TRƯỜNG ĐẠI HỌC KHOA HỌC TỰ NHIÊN\\
+ĐẠI HỌC QUỐC GIA TP. HỒ CHÍ MINH}
+
+\vspace{0.5cm}
+{\large Khoa Công nghệ Thông tin}
+
+\vspace{1.5cm}
+\includegraphics[width=3cm]{logo.png}  % Thay bằng logo trường nếu có
+\vspace{1cm}
+
+\begin{tcolorbox}[colback=navyblue!5, colframe=navyblue, width=\textwidth]
+\centering
+{\LARGE\bfseries\color{navyblue} BÁO CÁO BÀI TẬP LỚN}\\[0.4cm]
+{\Large\bfseries Môn: CS112 -- Phân tích và Thiết kế Thuật toán}\\[0.6cm]
+{\huge\bfseries\color{navyblue} Thuật toán Fourier-Motzkin\\[0.2cm]
+Giải Quy hoạch Tuyến tính}
+\end{tcolorbox}
+
+\vspace{1.5cm}
+
+\begin{tabular}{ll}
+\textbf{Giảng viên hướng dẫn:} & \ldots\ldots\ldots\ldots\ldots\ldots\ldots \\[0.3cm]
+\textbf{Sinh viên thực hiện:}   & \ldots\ldots\ldots\ldots\ldots\ldots\ldots \\[0.2cm]
+\textbf{MSSV:}                  & \ldots\ldots\ldots\ldots\ldots\ldots\ldots \\[0.2cm]
+\textbf{Lớp:}                   & \ldots\ldots\ldots\ldots\ldots\ldots\ldots \\
+\end{tabular}
+
+\vfill
+{\large TP. Hồ Chí Minh, \the\year}
+\end{titlepage}
+
+% ── Mục lục ───────────────────────────────────────────────────────────────
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Giới thiệu}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Đặt vấn đề}
+
+Quy hoạch tuyến tính (Linear Programming -- LP) là một trong những bài toán tối ưu hóa
+quan trọng nhất trong khoa học máy tính và toán học ứng dụng. Bài toán LP xuất hiện
+rộng rãi trong các lĩnh vực như kinh tế, logistics, lập lịch, phân bổ tài nguyên và
+nhiều ứng dụng thực tiễn khác.
+
+Bài tập lớn này tập trung vào việc cài đặt và trực quan hóa \textbf{thuật toán
+Fourier-Motzkin} -- một trong những phương pháp cổ điển và nền tảng nhất để giải
+bài toán LP thông qua phép chiếu (projection). Thuật toán được Joseph Fourier đề xuất
+năm 1827 và Theodore Motzkin phát triển độc lập năm 1936.
+
+\subsection{Mục tiêu}
+
+\begin{itemize}[leftmargin=1.5cm]
+    \item Nghiên cứu lý thuyết thuật toán Fourier-Motzkin và các tính chất toán học liên quan.
+    \item Cài đặt thuật toán theo \textbf{hai hướng tiếp cận}: số học (algebraic) và hình học (geometric).
+    \item Xây dựng ứng dụng web demo với giao diện trực quan, hỗ trợ giải trình từng bước.
+    \item Phân tích độ phức tạp và đánh giá hiệu năng của thuật toán.
+\end{itemize}
+
+\subsection{Phạm vi}
+
+Ứng dụng hỗ trợ giải bài toán LP dạng tổng quát với $n$ biến và $m$ ràng buộc
+(dạng $\leq$, $\geq$, $=$). Phương pháp hình học chỉ áp dụng cho bài toán 2 biến
+để có thể trực quan hóa trên mặt phẳng.
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Cơ sở lý thuyết}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Bài toán Quy hoạch Tuyến tính}
+
+\begin{definition}[Bài toán LP chuẩn tắc]
+Bài toán quy hoạch tuyến tính có dạng:
+\begin{equation}
+    \begin{aligned}
+        &\text{tối ưu hóa} \quad z = \vc^T \vx \\
+        &\text{thỏa mãn} \quad \mA\vx \leq \vb \\
+        &\phantom{\text{thỏa mãn}} \quad \vx \geq \mathbf{0}
+    \end{aligned}
+    \label{eq:lp_standard}
+\end{equation}
+trong đó $\vx \in \R^n$ là vector biến quyết định, $\vc \in \R^n$ là vector hệ số
+hàm mục tiêu, $\mA \in \R^{m \times n}$ là ma trận ràng buộc, $\vb \in \R^m$ là
+vector vế phải.
+\end{definition}
+
+\begin{definition}[Miền khả thi]
+Tập hợp $\mathcal{F} = \{\vx \in \R^n \mid \mA\vx \leq \vb,\ \vx \geq \mathbf{0}\}$
+được gọi là \textbf{miền khả thi} (feasible region). Mỗi điểm $\vx \in \mathcal{F}$
+là một \textbf{nghiệm khả thi}.
+\end{definition}
+
+\begin{theorem}[Định lý điểm cực biên]
+Nếu bài toán LP có nghiệm tối ưu hữu hạn, thì tồn tại ít nhất một \textbf{đỉnh}
+(vertex) của miền khả thi $\mathcal{F}$ là nghiệm tối ưu.
+\end{theorem}
+
+\subsection{Thuật toán Fourier-Motzkin}
+
+\subsubsection{Ý tưởng cốt lõi}
+
+Thuật toán Fourier-Motzkin (FM) giải bài toán LP bằng cách \textbf{loại dần từng biến}
+thông qua phép chiếu. Với mỗi biến $x_k$, thuật toán:
+
+\begin{enumerate}
+    \item Phân loại các ràng buộc thành ba nhóm theo hệ số của $x_k$:
+    \begin{itemize}
+        \item Nhóm $U$: $x_k \leq f_i(\vx_{-k})$ (hệ số dương)
+        \item Nhóm $L$: $x_k \geq g_j(\vx_{-k})$ (hệ số âm)
+        \item Nhóm $N$: không chứa $x_k$ (hệ số bằng 0)
+    \end{itemize}
+    \item Tạo ràng buộc mới bằng cách ghép mọi cặp $(l \in L,\ u \in U)$:
+    \begin{equation}
+        g_j(\vx_{-k}) \leq f_i(\vx_{-k})
+        \label{eq:fm_pair}
+    \end{equation}
+    \item Hệ mới gồm nhóm $N$ và tất cả ràng buộc mới từ bước 2.
+\end{enumerate}
+
+\subsubsection{Thêm biến mục tiêu $z$}
+
+Để tối ưu hóa hàm mục tiêu $z = \vc^T\vx$, ta thêm biến $z$ vào hệ:
+
+\begin{itemize}
+    \item \textbf{Bài toán max}: thêm ràng buộc $z \leq \vc^T\vx$, tức là
+          $z - \vc^T\vx \leq 0$.
+    \item \textbf{Bài toán min}: chuyển về $\max(-\vc^T\vx)$, thêm ràng buộc
+          $z \leq -\vc^T\vx$, tức là $z + \vc^T\vx \leq 0$.
+\end{itemize}
+
+Sau khi loại hết $x_1, \ldots, x_n$, hệ còn lại chỉ chứa $z$, từ đó tìm được
+$z^* = \min\{b_i/a_i \mid a_i > 0\}$.
+
+\subsubsection{Thuật toán FM đầy đủ}
+
+\begin{algorithm}[H]
+\caption{Fourier-Motzkin LP Solver}
+\label{alg:fm}
+\begin{algorithmic}[1]
+\Require $n$ biến, $m$ ràng buộc $\{a_i^T\vx \leq b_i\}$, hàm mục tiêu $\vc^T\vx$, loại (max/min)
+\Ensure Nghiệm tối ưu $\vx^*$ và giá trị $z^*$, hoặc thông báo vô nghiệm/không bị chặn
+
+\State \textbf{Bước 1: Chuẩn hóa} -- Đổi tất cả ràng buộc về dạng $\leq$
+\For{mỗi ràng buộc $\geq$} nhân hai vế với $-1$ \EndFor
+\For{mỗi ràng buộc $=$} tách thành hai ràng buộc $\leq$ \EndFor
+
+\State \textbf{Bước 2: Thêm biến $z$}
+\If{max} thêm $z - \vc^T\vx \leq 0$ \Else\ thêm $z + \vc^T\vx \leq 0$ \EndIf
+
+\State \textbf{Bước 3: Loại biến FM}
+\For{$k = 1$ \textbf{to} $n$}
+    \State Phân loại ràng buộc: nhóm $U$, $L$, $N$ theo hệ số $x_k$
+    \State Chuẩn hóa: $x_k \leq f_i$ (từ $U$), $x_k \geq g_j$ (từ $L$)
+    \For{mỗi cặp $(g_j, f_i) \in L \times U$}
+        \State Thêm ràng buộc mới: $(g_j\text{-coeffs} - f_i\text{-coeffs}) \cdot \vx \leq f_i\text{-rhs} - g_j\text{-rhs}$
+    \EndFor
+    \State Hệ mới $\leftarrow$ nhóm $N$ $\cup$ các ràng buộc mới
+\EndFor
+
+\State \textbf{Bước 4: Tìm $z^*$}
+\State Thu thập tất cả ràng buộc dạng $a_z \cdot z \leq b$ (chỉ chứa $z$)
+\State $z^* \leftarrow \min\{b/a_z \mid a_z > 0\}$
+\If{không có chặn trên} \Return \textbf{Không bị chặn} \EndIf
+
+\State \textbf{Bước 5: Back substitution}
+\For{$k = n$ \textbf{downto} $1$}
+    \State Thế $z = z^*$ và $x_{k+1}, \ldots, x_n$ đã biết vào hệ tại bước $k$
+    \State Tìm khoảng $[l_k, u_k]$ cho $x_k$, chọn $x_k \in [l_k, u_k]$
+\EndFor
+\State \Return $\vx^* = (x_1^*, \ldots, x_n^*)$, $z^*$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Độ phức tạp}
+
+\begin{theorem}[Độ phức tạp Fourier-Motzkin]
+Sau khi loại biến $x_k$, số ràng buộc có thể tăng từ $m$ lên tối đa
+$\lfloor m^2/4 \rfloor + m_N$ (do ghép $|L| \times |U|$ cặp, tối đa khi $|L| = |U| = m/2$).
+Sau $n$ bước loại biến, số ràng buộc có thể đạt $O(m^{2^n})$ trong trường hợp xấu nhất.
+\end{theorem}
+
+\begin{remark}
+Mặc dù độ phức tạp lý thuyết là hàm mũ kép, trong thực tế nhiều ràng buộc bị loại
+(redundant) hoặc hệ số bằng 0, nên thuật toán vẫn hiệu quả với các bài toán vừa và nhỏ.
+Đây là lý do FM được dùng rộng rãi trong kiểm tra tính khả thi và phân tích hệ bất đẳng thức.
+\end{remark}
+
+\subsection{Phương pháp hình học (2 biến)}
+
+Với bài toán 2 biến, miền khả thi $\mathcal{F}$ là một \textbf{đa giác lồi} (convex polygon)
+trên mặt phẳng $Ox_1x_2$. Phương pháp hình học gồm 4 bước:
+
+\begin{enumerate}
+    \item \textbf{Vẽ đường biên}: Mỗi ràng buộc $a_1x_1 + a_2x_2 \leq b$ xác định
+          một nửa mặt phẳng. Đường biên là đường thẳng $a_1x_1 + a_2x_2 = b$.
+    \item \textbf{Xác định miền khả thi}: Giao của tất cả các nửa mặt phẳng.
+          Tìm các đỉnh bằng cách giải hệ $2 \times 2$ từ mọi cặp ràng buộc.
+    \item \textbf{Tính $z$ tại các đỉnh}: Theo Định lý điểm cực biên, nghiệm tối ưu
+          nằm tại một đỉnh của $\mathcal{F}$.
+    \item \textbf{Đường mức}: Tịnh tiến đường mức $z = \vc^T\vx = c$ theo hướng
+          gradient $\nabla z = \vc$ (max) hoặc $-\vc$ (min) cho đến khi chạm biên.
+\end{enumerate}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=10cm, height=8cm,
+    xlabel={$x_1$}, ylabel={$x_2$},
+    xmin=-0.3, xmax=4.5, ymin=-0.3, ymax=5,
+    grid=both, grid style={line width=0.3pt, draw=gray!30},
+    axis lines=left,
+    tick label style={font=\small},
+    legend pos=north east,
+    legend style={font=\small}
+]
+% Miền khả thi (tô màu)
+\addplot[fill=navyblue!15, draw=none, opacity=0.5]
+    coordinates {(0,0) (3,0) (2,2) (0,4)} -- cycle;
+
+% Đường biên
+\addplot[thick, navyblue, domain=0:4, samples=2] {4-x}
+    node[right, font=\small] {$x_1+x_2=4$};
+\addplot[thick, red!70!black, domain=0:3, samples=2] {6-2*x}
+    node[right, font=\small] {$2x_1+x_2=6$};
+\addplot[thick, gray, domain=0:0.1, samples=2] coordinates {(0,0)(0,4.5)}
+    node[above, font=\small] {$x_1=0$};
+\addplot[thick, gray, domain=0:4.5, samples=2] {0}
+    node[right, font=\small] {$x_2=0$};
+
+% Đường mức tối ưu
+\addplot[thick, dashed, codegreen, domain=0:4, samples=2] {(10-3*x)/2}
+    node[right, font=\small, color=codegreen] {$z^*=10$};
+
+% Các đỉnh
+\addplot[only marks, mark=*, mark size=3pt, navyblue]
+    coordinates {(0,0) (3,0) (2,2) (0,4)};
+\node[above left, font=\small] at (axis cs:0,0) {$O(0,0)$};
+\node[below right, font=\small] at (axis cs:3,0) {$B(3,0)$};
+\node[above right, font=\small, color=red!70!black] at (axis cs:2,2) {$\mathbf{C^*(2,2)}$};
+\node[above right, font=\small] at (axis cs:0,4) {$D(0,4)$};
+
+% Mũi tên gradient
+\draw[->, thick, codegreen!80!black, line width=1.5pt]
+    (axis cs:1,1) -- (axis cs:1.6,1.4)
+    node[right, font=\small, color=codegreen!80!black] {$\nabla z$};
+
+\end{axis}
+\end{tikzpicture}
+\caption{Minh họa phương pháp hình học: bài toán $\max z = 3x_1 + 2x_2$
+với $x_1+x_2 \leq 4$, $2x_1+x_2 \leq 6$, $x_1,x_2 \geq 0$.
+Nghiệm tối ưu tại $C^*(2,2)$ với $z^* = 10$.}
+\label{fig:geometric}
+\end{figure}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Thiết kế hệ thống}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Kiến trúc tổng thể}
+
+Ứng dụng được xây dựng theo mô hình \textbf{Client-Server} với Flask (Python) làm backend
+và HTML/CSS/JavaScript thuần làm frontend.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.5cm,
+    box/.style={rectangle, draw=navyblue, fill=lightblue, rounded corners=4pt,
+                minimum width=3cm, minimum height=1cm, font=\small\bfseries,
+                text centered},
+    arrow/.style={->, thick, navyblue}
+]
+\node[box, fill=green!10, draw=codegreen] (browser) {Trình duyệt\\(HTML/CSS/JS)};
+\node[box, right=3cm of browser] (flask) {Flask App\\(main.py)};
+\node[box, below=1.2cm of flask] (solver) {Solver Module};
+\node[box, below left=0.8cm and -0.5cm of solver] (core) {core\_exact.py\\(FM số học)};
+\node[box, below right=0.8cm and -0.5cm of solver] (geo) {geometric.py\\(FM hình học)};
+\node[box, below=1.2cm of core] (exact) {exact.py\\(SymPy)};
+\node[box, below=1.2cm of geo] (reason) {reasoning.py\\(Ghi bước)};
+\node[box, right=1.5cm of solver] (parser) {parser.py\\(Parse text)};
+
+\draw[arrow] (browser) -- node[above, font=\tiny] {POST /api/solve} (flask);
+\draw[arrow] (flask) -- node[right, font=\tiny] {} (solver);
+\draw[arrow] (solver) -- (core);
+\draw[arrow] (solver) -- (geo);
+\draw[arrow] (core) -- (exact);
+\draw[arrow] (core) -- (reason);
+\draw[arrow] (geo) -- (reason);
+\draw[arrow] (flask) -- (parser);
+\draw[arrow, dashed] (flask) to[bend left=20] node[above, font=\tiny] {JSON response} (browser);
+\end{tikzpicture}
+\caption{Kiến trúc hệ thống Fourier-Motzkin LP Solver}
+\label{fig:architecture}
+\end{figure}
+
+\subsection{Cấu trúc thư mục}
+
+\begin{lstlisting}[language=bash, caption={Cấu trúc dự án}, label={lst:structure}]
+fourier-motzkin/
+|-- main.py              # Flask app, API endpoints
+|-- requirements.txt     # Dependencies (Flask, SymPy, ...)
+|-- Procfile             # Gunicorn deploy config
+|-- solver/
+|   |-- __init__.py
+|   |-- core.py          # FM solver (float, legacy)
+|   |-- core_exact.py    # FM solver (SymPy exact, chinh)
+|   |-- exact.py         # Tien ich so hoc exact (SymPy)
+|   |-- geometric.py     # Phuong phap hinh hoc (2 bien)
+|   |-- parser.py        # Parse rang buoc dang text
+|   `-- reasoning.py     # Ghi lai cac buoc lap luan
+|-- templates/
+|   `-- index.html       # Giao dien web (SPA)
+`-- static/
+    `-- style.css        # CSS bo sung
+\end{lstlisting}
+
+\subsection{Mô tả các module}
+
+\subsubsection{Module \texttt{exact.py} -- Số học chính xác}
+
+Module này sử dụng thư viện \textbf{SymPy} để thực hiện tính toán với số hữu tỉ chính xác,
+tránh sai số dấu phẩy động. Các hàm chính:
+
+\begin{itemize}
+    \item \texttt{to\_exact\_number(value)}: Chuyển đổi giá trị bất kỳ (int, float, str)
+          thành số SymPy exact (\texttt{Rational}, \texttt{Integer}).
+    \item \texttt{fmt\_exact(value)}: Định dạng số exact thành chuỗi hiển thị.
+    \item \texttt{constraint\_to\_exact(c)}: Chuyển ràng buộc sang dạng exact.
+    \item \texttt{format\_linear\_expression(coeffs, var\_names)}: Định dạng biểu thức tuyến tính.
+\end{itemize}
+
+\begin{lstlisting}[caption={Ví dụ sử dụng exact.py}, label={lst:exact}]
+from solver.exact import to_exact_number, fmt_exact
+from sympy import Rational
+
+# Chuyen float thanh Rational chinh xac
+x = to_exact_number(0.333333)
+# => Rational('1/3') thay vi 0.333333...
+
+# Tinh toan chinh xac
+a = to_exact_number("1/3")
+b = to_exact_number("2/5")
+print(fmt_exact(a + b))  # => "11/15"
+\end{lstlisting}
+
+\subsubsection{Module \texttt{core\_exact.py} -- FM số học}
+
+Đây là module chính cài đặt thuật toán Fourier-Motzkin với số học exact. Pipeline:
+
+\begin{enumerate}
+    \item \texttt{chuan\_hoa\_he()}: Chuẩn hóa tất cả ràng buộc về dạng $\leq$.
+    \item \texttt{them\_bien\_z()}: Thêm biến $z$ vào hệ.
+    \item \texttt{co\_lap\_bien()}: Phân loại ràng buộc theo hệ số của biến cần loại.
+    \item \texttt{ghep\_cap\_FM()}: Ghép cặp $(L, U)$ tạo ràng buộc mới.
+    \item \texttt{tim\_z\_max()}: Tìm chặn trên của $z$.
+    \item \texttt{back\_substitute\_FM()}: Thế ngược tìm nghiệm.
+    \item \texttt{kiem\_tra\_nghiem()}: Kiểm tra nghiệm thỏa mãn hệ gốc.
+\end{enumerate}
+
+\subsubsection{Module \texttt{geometric.py} -- FM hình học}
+
+Cài đặt phương pháp hình học cho bài toán 2 biến:
+
+\begin{itemize}
+    \item \texttt{phan\_loai\_duong\_bien()}: Phân loại đường biên (trục, đứng, ngang, thường).
+    \item \texttt{giai\_he\_phuong\_trinh()}: Giải hệ $2 \times 2$ tìm giao điểm.
+    \item \texttt{tinh\_huong\_vec()}: Tính vector hướng vào miền nghiệm.
+    \item \texttt{sap\_xep\_dinh\_convex()}: Sắp xếp đỉnh theo thứ tự convex hull.
+    \item \texttt{giai\_hinh\_hoc()}: Hàm chính giải bài toán hình học.
+\end{itemize}
+
+\subsubsection{Module \texttt{parser.py} -- Parse ràng buộc text}
+
+Cho phép người dùng nhập ràng buộc dạng văn bản tự nhiên, hỗ trợ:
+\begin{itemize}
+    \item Hệ số là biểu thức toán học: \texttt{2\^{}3}, \texttt{1/3}, \texttt{sqrt(2)}.
+    \item Hàm lượng giác trong hệ số: \texttt{sin(pi/6)}, \texttt{cos(pi/3)}.
+    \item Phát hiện và báo lỗi chi tiết với số dòng và gợi ý sửa.
+\end{itemize}
+
+\subsubsection{Module \texttt{reasoning.py} -- Ghi bước lập luận}
+
+\texttt{ReasoningEngine} ghi lại từng bước tính toán với 4 loại:
+\texttt{INFO}, \texttt{TINH\_TOAN}, \texttt{KET\_LUAN}, \texttt{CANH\_BAO}.
+Kết quả được trả về dạng JSON để hiển thị trên giao diện.
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Cài đặt chi tiết}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Hàm chuẩn hóa ràng buộc}
+
+\begin{lstlisting}[caption={Chuẩn hóa ràng buộc về dạng $\leq$}, label={lst:normalize}]
+def chuan_hoa_he(constraints, obj_coeffs, obj_type, engine):
+    """Chuẩn hoá về dạng ≤."""
+    result = []
+    for c in constraints:
+        c = constraint_to_exact(c)
+        if c["sense"] == "<=":
+            result.append({"coeffs": c["coeffs"][:], "rhs": c["rhs"], "sense": "<="})
+        elif c["sense"] == ">=":
+            # Nhân hai vế với -1: a*x >= b  =>  -a*x <= -b
+            nc = {"coeffs": [-v for v in c["coeffs"]], "rhs": -c["rhs"], "sense": "<="}
+            result.append(nc)
+        elif c["sense"] == "=":
+            # Tách thành 2 bất đẳng thức: a*x = b  =>  a*x <= b  và  -a*x <= -b
+            cle = {"coeffs": c["coeffs"][:], "rhs": c["rhs"], "sense": "<="}
+            cge = {"coeffs": [-v for v in c["coeffs"]], "rhs": -c["rhs"], "sense": "<="}
+            result.extend([cle, cge])
+    return result
+\end{lstlisting}
+
+\subsection{Hàm phân loại và ghép cặp FM}
+
+\begin{lstlisting}[caption={Phân loại ràng buộc và ghép cặp FM}, label={lst:fm_core}]
+def co_lap_bien(constraints, var_idx):
+    """Phân loại ràng buộc theo hệ số của biến var_idx."""
+    nhom_U, nhom_L, nhom_N = [], [], []
+    for c in constraints:
+        a = c["coeffs"][var_idx]
+        if is_zero(a):
+            nhom_N.append(c)
+            continue
+        # Chuẩn hóa: chia hai vế cho |a|
+        sc = [-(c["coeffs"][j]) / a for j in range(len(c["coeffs"]))]
+        sc[var_idx] = to_exact_number(0)
+        sr = c["rhs"] / a
+        bc = {"coeffs": sc, "rhs": sr, "sense": "<=" if is_positive(a) else ">="}
+        (nhom_U if is_positive(a) else nhom_L).append(bc)
+    return nhom_U, nhom_L, nhom_N
+
+def ghep_cap_FM(nhom_L, nhom_U, nhom_N, var_idx, var_names, engine):
+    """Ghép mọi cặp (l in L, u in U): f_L <= f_U."""
+    result = list(nhom_N)
+    for l in nhom_L:
+        for u in nhom_U:
+            # Ràng buộc mới: (l_coeffs - u_coeffs)*x <= u_rhs - l_rhs
+            new_coeffs = [lc - uc for lc, uc in zip(l["coeffs"], u["coeffs"])]
+            new_rhs = u["rhs"] - l["rhs"]
+            result.append({"coeffs": new_coeffs, "rhs": new_rhs, "sense": "<="})
+    return result
+\end{lstlisting}
+
+\subsection{Back substitution}
+
+Sau khi tìm được $z^*$, thuật toán thế ngược từ $x_n$ về $x_1$:
+
+\begin{lstlisting}[caption={Back substitution tìm nghiệm}, label={lst:backsubst}]
+def back_substitute_FM(steps_constraints, z_max, n, engine):
+    """Thế z=z_max và các biến đã biết, tìm từng xi từ xn về x1."""
+    solution = [to_exact_number(0)] * n
+    for k in range(n - 1, -1, -1):
+        cons = steps_constraints[k]  # Hệ trước khi loại x_k
+        lower, upper = None, None
+        for c in cons:
+            a = c["coeffs"][k]
+            if is_zero(a): continue
+            # Thế z và x_{k+1},...,x_{n-1} đã biết
+            rhs_val = c["rhs"]
+            rhs_val -= c["coeffs"][n] * z_max  # trừ phần z
+            for j in range(k + 1, n):
+                rhs_val -= c["coeffs"][j] * solution[j]
+            bound = rhs_val / a
+            if is_positive(a):
+                upper = bound if upper is None or is_less(bound, upper) else upper
+            else:
+                lower = bound if lower is None or is_greater(bound, lower) else lower
+        # Chọn giá trị trong [lower, upper]
+        if lower is not None and upper is not None:
+            val = lower  # hoặc (lower+upper)/2
+        elif lower is not None:
+            val = lower
+        elif upper is not None:
+            val = max(upper, to_exact_number(0))
+        else:
+            val = to_exact_number(0)
+        solution[k] = val
+    return solution
+\end{lstlisting}
+
+\subsection{Phương pháp hình học -- Tìm đỉnh khả thi}
+
+\begin{lstlisting}[caption={Tìm các đỉnh của miền khả thi}, label={lst:vertices}]
+def giai_hinh_hoc(n, constraints, obj_coeffs, obj_type):
+    """Giải LP 2 biến bằng phương pháp hình học."""
+    from itertools import combinations
+    feasible_vertices = []
+    seen = set()
+    # Xét mọi cặp ràng buộc, giải hệ 2x2
+    for (i, j) in combinations(range(len(constraints)), 2):
+        sol = giai_he_phuong_trinh(constraints[i], constraints[j])
+        if sol is None: continue
+        key = (round(sol[0], 6), round(sol[1], 6))
+        if key in seen: continue
+        seen.add(key)
+        # Kiểm tra điểm có thỏa mãn TẤT CẢ ràng buộc không
+        if not _kiem_tra(sol, constraints): continue
+        feasible_vertices.append({"point": list(sol), ...})
+    # Tính z tại mỗi đỉnh, chọn đỉnh tối ưu
+    best_z = None
+    for v in feasible_vertices:
+        z = sum(obj_coeffs[k] * v["point"][k] for k in range(2))
+        if best_z is None or (obj_type=="max" and z > best_z):
+            best_z = z
+    return {"feasible": True, "z": best_z, ...}
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Giao diện người dùng (UI Demo)}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Tổng quan giao diện}
+
+Giao diện web được xây dựng bằng HTML/CSS/JavaScript thuần (không dùng framework),
+với thiết kế hiện đại, responsive. Màu chủ đạo là navy blue (\texttt{\#1a237e}).
+
+\subsection{Các thành phần chính}
+
+\subsubsection{Thanh công cụ (Toolbar)}
+
+\begin{itemize}
+    \item \textbf{Số biến}: Nhập số biến $n \geq 2$, nhấn ``Áp dụng'' để cập nhật form.
+    \item \textbf{Mục tiêu}: Toggle MAX/MIN.
+    \item \textbf{Ví dụ mẫu / Reset}: Nạp bài toán mẫu hoặc xóa toàn bộ.
+\end{itemize}
+
+\subsubsection{Nhập hàm mục tiêu và ràng buộc}
+
+Hỗ trợ \textbf{hai chế độ nhập}:
+\begin{itemize}
+    \item \textbf{Form}: Nhập từng hệ số vào ô input, chọn dấu ($\leq$, $\geq$, $=$),
+          nhập vế phải. Có nút thêm/xóa ràng buộc động.
+    \item \textbf{Text}: Nhập tự do dạng văn bản, ví dụ:
+          \texttt{2x1 + x2 <= 6}, \texttt{sin(pi/6)x1 + sqrt(2)x2 >= 1}.
+          Parser tự động phân tích và báo lỗi chi tiết.
+\end{itemize}
+
+Checkbox ``Tự động thêm điều kiện không âm $x_i \geq 0$'' giúp tiết kiệm thao tác.
+
+\subsubsection{Chọn phương pháp giải}
+
+Toggle giữa hai phương pháp:
+\begin{itemize}
+    \item \textbf{Số học (FM)}: Áp dụng cho mọi $n \geq 1$.
+    \item \textbf{Hình học}: Chỉ áp dụng cho $n = 2$, hiển thị biểu đồ 2D.
+\end{itemize}
+
+\subsubsection{Kết quả và các tab}
+
+Sau khi nhấn ``GIẢI'', kết quả hiển thị qua 4 tab:
+
+\begin{enumerate}
+    \item \textbf{Các bước FM}: Accordion hiển thị hệ ràng buộc sau mỗi bước loại biến.
+          Ràng buộc mới được tô xanh (★), ràng buộc bị loại gạch ngang.
+    \item \textbf{Biểu đồ}: Chart.js vẽ miền khả thi, các đỉnh (có nhãn tọa độ),
+          đường biên, đường mức tối ưu và mũi tên gradient. Chỉ hiển thị khi $n = 2$.
+    \item \textbf{Reasoning}: Hiển thị từng bước lập luận chi tiết với màu sắc
+          phân loại (INFO, TÍNH TOÁN, KẾT LUẬN, CẢNH BÁO). Có bộ lọc theo loại.
+    \item \textbf{Xuất file}: Tải về file \texttt{.txt} chứa toàn bộ giải trình
+          (cả hai phương pháp đều hỗ trợ).
+\end{enumerate}
+
+\subsection{Luồng xử lý API}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.2cm,
+    step/.style={rectangle, draw=navyblue, fill=lightblue, rounded corners=3pt,
+                 minimum width=4.5cm, minimum height=0.8cm, font=\small, text centered},
+    decision/.style={diamond, draw=navyblue, fill=yellow!20, font=\small,
+                     minimum width=2.5cm, minimum height=0.8cm, text centered, aspect=2},
+    arrow/.style={->, thick, navyblue}
+]
+\node[step] (input) {Người dùng nhập bài toán};
+\node[step, below of=input] (collect) {collectInput() -- Thu thập dữ liệu};
+\node[step, below of=collect] (post) {POST /api/solve (JSON)};
+\node[decision, below of=post, yshift=-0.3cm] (method) {Phương pháp?};
+\node[step, below left=1cm and 1.5cm of method] (fm) {giai\_bai\_toan()\\(FM số học)};
+\node[step, below right=1cm and 1.5cm of method] (geo) {giai\_hinh\_hoc()\\(Hình học)};
+\node[step, below=2.5cm of method] (json) {Trả về JSON kết quả};
+\node[step, below of=json] (render) {Render kết quả + biểu đồ};
+
+\draw[arrow] (input) -- (collect);
+\draw[arrow] (collect) -- (post);
+\draw[arrow] (post) -- (method);
+\draw[arrow] (method) -- node[above left, font=\tiny] {algebraic} (fm);
+\draw[arrow] (method) -- node[above right, font=\tiny] {geometric} (geo);
+\draw[arrow] (fm) -- (json);
+\draw[arrow] (geo) -- (json);
+\draw[arrow] (json) -- (render);
+\end{tikzpicture}
+\caption{Luồng xử lý từ input đến kết quả}
+\label{fig:flow}
+\end{figure}
+
+\subsection{Công nghệ sử dụng}
+
+\begin{table}[H]
+\centering
+\caption{Công nghệ và thư viện sử dụng}
+\label{tab:tech}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Thành phần} & \textbf{Mô tả} & \textbf{Phiên bản} \\
+\midrule
+Python & Ngôn ngữ lập trình chính & 3.x \\
+Flask & Web framework (backend) & 3.1.3 \\
+SymPy & Số học chính xác (Rational, Integer) & 1.14.0 \\
+Chart.js & Vẽ biểu đồ 2D (CDN) & 4.4.1 \\
+Gunicorn & WSGI server (deploy) & 25.3.0 \\
+HTML/CSS/JS & Frontend (không dùng framework) & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Ví dụ minh họa}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Ví dụ 1: Bài toán 2 biến (MAX)}
+
+\begin{infobox}[Bài toán]
+\begin{align*}
+    \max\quad & z = 3x_1 + 2x_2 \\
+    \text{s.t.}\quad & x_1 + x_2 \leq 4 \\
+    & 2x_1 + x_2 \leq 6 \\
+    & x_1, x_2 \geq 0
+\end{align*}
+\end{infobox}
+
+\subsubsection{Giải bằng phương pháp số học (FM)}
+
+\textbf{Bước 1: Chuẩn hóa và thêm biến $z$}
+
+Hệ ràng buộc sau chuẩn hóa (đã có dạng $\leq$):
+\begin{align}
+    x_1 + x_2 &\leq 4 \label{c1}\\
+    2x_1 + x_2 &\leq 6 \label{c2}\\
+    -x_1 &\leq 0 \label{c3}\\
+    -x_2 &\leq 0 \label{c4}
+\end{align}
+
+Thêm biến $z$: $z - 3x_1 - 2x_2 \leq 0$ \hfill (ràng buộc $z \leq 3x_1 + 2x_2$)
+
+\textbf{Bước 2: Loại $x_1$}
+
+Phân loại theo hệ số $x_1$:
+\begin{itemize}
+    \item Nhóm $U$ ($x_1 \leq \ldots$): từ \eqref{c1}: $x_1 \leq 4 - x_2$;
+          từ \eqref{c2}: $x_1 \leq 3 - \frac{1}{2}x_2$;
+          từ ràng buộc $z$: $x_1 \leq \frac{1}{3}(z - 2x_2) \cdot (-1)$... (sau chuẩn hóa)
+    \item Nhóm $L$ ($x_1 \geq \ldots$): từ \eqref{c3}: $x_1 \geq 0$
+    \item Nhóm $N$: \eqref{c4}
+\end{itemize}
+
+Ghép cặp $L \times U$ tạo ràng buộc mới (loại $x_1$):
+\begin{align}
+    0 &\leq 4 - x_2 \implies x_2 \leq 4 \\
+    0 &\leq 3 - \tfrac{1}{2}x_2 \implies x_2 \leq 6 \\
+    0 &\leq \tfrac{1}{3}(z - 2x_2) \cdot (-1) \implies \ldots
+\end{align}
+
+\textbf{Bước 3: Loại $x_2$} (tương tự)
+
+\textbf{Bước 4: Tìm $z^*$}
+
+Sau khi loại hết $x_1, x_2$, thu được: $z \leq 10$
+
+$$\boxed{z^* = 10}$$
+
+\textbf{Bước 5: Back substitution}
+
+Thế $z = 10$ vào hệ tại bước loại $x_2$: tìm được $x_2 = 2$.\\
+Thế $z = 10$, $x_2 = 2$ vào hệ tại bước loại $x_1$: tìm được $x_1 = 2$.
+
+\begin{resultbox}[Kết quả]
+$$x_1^* = 2,\quad x_2^* = 2,\quad z^* = 3(2) + 2(2) = \mathbf{10}$$
+\end{resultbox}
+
+\subsubsection{Giải bằng phương pháp hình học}
+
+Các đỉnh của miền khả thi (giao điểm các cặp ràng buộc):
+
+\begin{table}[H]
+\centering
+\caption{Giá trị $z$ tại các đỉnh -- Ví dụ 1}
+\label{tab:ex1_vertices}
+\begin{tabular}{cccc}
+\toprule
+\textbf{Đỉnh} & $x_1$ & $x_2$ & $z = 3x_1 + 2x_2$ \\
+\midrule
+$O$ & 0 & 0 & 0 \\
+$B$ & 3 & 0 & 9 \\
+$C^*$ & 2 & 2 & \textbf{10} $\leftarrow$ MAX \\
+$D$ & 0 & 4 & 8 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Nghiệm tối ưu tại $C^*(2, 2)$ với $z^* = 10$. ✓
+
+\subsection{Ví dụ 2: Bài toán 3 biến (MAX)}
+
+\begin{infobox}[Bài toán]
+\begin{align*}
+    \max\quad & z = 2x_1 + 3x_2 + x_3 \\
+    \text{s.t.}\quad & x_1 + x_2 + x_3 \leq 6 \\
+    & x_2 + x_3 \leq 4 \\
+    & x_1 + x_2 \leq 4 \\
+    & x_1, x_2, x_3 \geq 0
+\end{align*}
+\end{infobox}
+
+Bài toán 3 biến không thể giải bằng phương pháp hình học (cần không gian 3D).
+Áp dụng FM số học:
+
+\begin{resultbox}[Kết quả]
+$$x_1^* = 2,\quad x_2^* = 2,\quad x_3^* = 2,\quad z^* = 2(2)+3(2)+1(2) = \mathbf{12}$$
+\end{resultbox}
+
+\subsection{Ví dụ 3: Bài toán MIN với hệ số phân số}
+
+\begin{infobox}[Bài toán]
+\begin{align*}
+    \min\quad & z = -x_1 - 2x_2 \\
+    \text{s.t.}\quad & 2x_1 + x_2 \leq 6 \\
+    & x_1 + x_2 \geq 2 \\
+    & -x_1 + x_2 \geq 3 \\
+    & x_1, x_2 \geq 0
+\end{align*}
+\end{infobox}
+
+Bài toán MIN được chuyển về $\max(-z) = \max(x_1 + 2x_2)$.
+
+\begin{resultbox}[Kết quả]
+Nghiệm tối ưu: $x_1^* = 0$, $x_2^* = 6$, $z^* = -12$
+\end{resultbox}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Phân tích và đánh giá}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Phân tích độ phức tạp}
+
+\subsubsection{Độ phức tạp thời gian}
+
+\begin{table}[H]
+\centering
+\caption{Phân tích độ phức tạp theo số biến và ràng buộc}
+\label{tab:complexity}
+\begin{tabular}{lll}
+\toprule
+\textbf{Bước} & \textbf{Độ phức tạp} & \textbf{Ghi chú} \\
+\midrule
+Chuẩn hóa & $O(m)$ & $m$ ràng buộc \\
+Thêm biến $z$ & $O(m)$ & Thêm 1 ràng buộc \\
+Loại 1 biến & $O(m^2)$ & Ghép $|L| \times |U| \leq m^2/4$ cặp \\
+Loại $n$ biến & $O(m^{2^n})$ & Trường hợp xấu nhất \\
+Tìm $z^*$ & $O(m')$ & $m'$ = số ràng buộc còn lại \\
+Back substitution & $O(n \cdot m)$ & $n$ bước, mỗi bước $O(m)$ \\
+\midrule
+\textbf{Tổng} & $O(m^{2^n})$ & Hàm mũ kép theo $n$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Độ phức tạp không gian}
+
+Số ràng buộc sau $k$ bước loại biến tối đa là $O(m^{2^k})$, dẫn đến không gian
+lưu trữ cũng là $O(m^{2^n})$ trong trường hợp xấu nhất.
+
+\subsubsection{So sánh với Simplex}
+
+\begin{table}[H]
+\centering
+\caption{So sánh Fourier-Motzkin và Simplex}
+\label{tab:compare}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Tiêu chí} & \textbf{Fourier-Motzkin} & \textbf{Simplex} \\
+\midrule
+Độ phức tạp (xấu nhất) & $O(m^{2^n})$ -- hàm mũ kép & $O(2^n)$ -- hàm mũ \\
+Độ phức tạp (thực tế) & Tốt với $n$ nhỏ & Đa thức trong hầu hết trường hợp \\
+Tính chính xác & Exact (với SymPy) & Có thể có sai số số học \\
+Giải trình bước & Rõ ràng, dễ hiểu & Phức tạp hơn (pivot) \\
+Ứng dụng chính & Kiểm tra khả thi, $n$ nhỏ & Bài toán lớn thực tế \\
+Phát hiện vô nghiệm & Tự nhiên trong quá trình & Cần phase I \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Ưu điểm của cài đặt}
+
+\begin{enumerate}
+    \item \textbf{Số học chính xác}: Sử dụng SymPy \texttt{Rational} thay vì float,
+          tránh hoàn toàn sai số tích lũy. Ví dụ: $1/3 + 2/3 = 1$ (không phải $0.9999...$).
+
+    \item \textbf{Hỗ trợ hệ số phức tạp}: Parser cho phép nhập hệ số dạng
+          $\sin(\pi/6)$, $\sqrt{2}$, $2^3$, $1/3$ -- được tính chính xác bằng SymPy.
+
+    \item \textbf{Giải trình chi tiết}: Mỗi bước tính toán được ghi lại với
+          \texttt{ReasoningEngine}, giúp người học hiểu rõ quá trình.
+
+    \item \textbf{Hai phương pháp bổ sung nhau}: FM số học cho kết quả chính xác
+          với mọi $n$; hình học cho trực quan hóa với $n = 2$.
+
+    \item \textbf{Giao diện thân thiện}: Responsive, hỗ trợ cả nhập form và text,
+          có biểu đồ tương tác, xuất file giải trình.
+\end{enumerate}
+
+\subsection{Hạn chế}
+
+\begin{enumerate}
+    \item \textbf{Bùng nổ ràng buộc}: Với $n$ lớn (> 5-6 biến), số ràng buộc
+          tăng theo hàm mũ kép, làm chậm đáng kể.
+
+    \item \textbf{Hình học chỉ cho $n = 2$}: Không thể trực quan hóa không gian
+          3 chiều trở lên trên giao diện 2D.
+
+    \item \textbf{Back substitution}: Trong một số trường hợp đặc biệt (miền nghiệm
+          không bị chặn theo một chiều), việc chọn giá trị trong khoảng $[l, u]$
+          có thể không cho nghiệm tối ưu duy nhất.
+\end{enumerate}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Hướng dẫn sử dụng}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Cài đặt và chạy}
+
+\begin{lstlisting}[language=bash, caption={Cài đặt và chạy ứng dụng}]
+# 1. Clone hoặc tải source code
+cd fourier-motzkin
+
+# 2. Tao virtual environment
+python -m venv .venv
+.venv\Scripts\activate   # Windows
+
+# 3. Cai dependencies
+pip install -r requirements.txt
+
+# 4. Chay ung dung
+python main.py
+# => Truy cap http://localhost:5000
+\end{lstlisting}
+
+\subsection{Sử dụng API trực tiếp}
+
+\begin{lstlisting}[language=bash, caption={Gọi API /api/solve}]
+curl -X POST http://localhost:5000/api/solve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "n": 2,
+    "obj_coeffs": [3, 2],
+    "obj_type": "max",
+    "method": "algebraic",
+    "input_mode": "form",
+    "constraints": [
+      {"coeffs": [1, 1], "sense": "<=", "rhs": 4},
+      {"coeffs": [2, 1], "sense": "<=", "rhs": 6},
+      {"coeffs": [-1, 0], "sense": "<=", "rhs": 0},
+      {"coeffs": [0, -1], "sense": "<=", "rhs": 0}
+    ]
+  }'
+\end{lstlisting}
+
+\textbf{Response JSON} trả về:
+\begin{itemize}
+    \item \texttt{feasible}: \texttt{true/false}
+    \item \texttt{solution}: \texttt{\{"x1": "2", "x2": "2"\}}
+    \item \texttt{z}: \texttt{"10"}
+    \item \texttt{steps\_constraints}: Danh sách hệ ràng buộc sau mỗi bước FM
+    \item \texttt{reasoning}: Chi tiết từng bước lập luận
+    \item \texttt{vertices}, \texttt{boundary\_lines}, \texttt{level\_lines}: Dữ liệu biểu đồ
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section{Kết luận}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Tổng kết}
+
+Bài tập lớn đã hoàn thành các mục tiêu đề ra:
+
+\begin{enumerate}
+    \item \textbf{Nghiên cứu lý thuyết}: Nắm vững thuật toán Fourier-Motzkin,
+          cơ sở toán học (phép chiếu, ghép cặp bất đẳng thức), và phương pháp hình học.
+
+    \item \textbf{Cài đặt FM số học} (\texttt{core\_exact.py}): Pipeline đầy đủ
+          gồm chuẩn hóa, thêm biến $z$, loại biến FM, tìm $z^*$, back substitution,
+          kiểm tra nghiệm. Sử dụng SymPy để đảm bảo tính chính xác.
+
+    \item \textbf{Cài đặt FM hình học} (\texttt{geometric.py}): Tìm đỉnh miền khả thi,
+          tính $z$ tại các đỉnh, xác định nghiệm tối ưu, vẽ đường mức.
+
+    \item \textbf{Xây dựng UI demo}: Ứng dụng web Flask với giao diện trực quan,
+          hỗ trợ nhập liệu linh hoạt, hiển thị biểu đồ Chart.js, giải trình từng bước,
+          xuất file kết quả.
+
+    \item \textbf{Tính năng nổi bật}: Parser hỗ trợ hệ số phức tạp ($\sin$, $\sqrt{}$,
+          phân số), số học exact với SymPy, reasoning engine ghi lại mọi bước.
+\end{enumerate}
+
+\subsection{Hướng phát triển}
+
+\begin{itemize}
+    \item Tối ưu hóa FM bằng cách loại bỏ ràng buộc dư thừa (redundant constraints)
+          trước mỗi bước để giảm bùng nổ số ràng buộc.
+    \item Thêm trực quan hóa 3D cho bài toán 3 biến (WebGL/Three.js).
+    \item Cài đặt thêm thuật toán Simplex để so sánh trực tiếp.
+    \item Hỗ trợ bài toán LP nguyên (Integer LP) bằng Branch and Bound.
+    \item Thêm tính năng lưu/tải bài toán, chia sẻ link kết quả.
+\end{itemize}
+
+% ══════════════════════════════════════════════════════════════════════════
+\section*{Tài liệu tham khảo}
+\addcontentsline{toc}{section}{Tài liệu tham khảo}
+% ══════════════════════════════════════════════════════════════════════════
+
+\begin{thebibliography}{99}
+
+\bibitem{fourier1827}
+J. Fourier,
+\textit{Solution d'une question particulière du calcul des inégalités},
+Nouveau Bulletin des Sciences par la Société Philomathique de Paris, 1827.
+
+\bibitem{motzkin1936}
+T. S. Motzkin,
+\textit{Beiträge zur Theorie der linearen Ungleichungen},
+Dissertation, Universität Basel, 1936.
+
+\bibitem{schrijver1986}
+A. Schrijver,
+\textit{Theory of Linear and Integer Programming},
+John Wiley \& Sons, 1986.
+
+\bibitem{dantzig1963}
+G. B. Dantzig,
+\textit{Linear Programming and Extensions},
+Princeton University Press, 1963.
+
+\bibitem{cormen2009}
+T. H. Cormen, C. E. Leiserson, R. L. Rivest, C. Stein,
+\textit{Introduction to Algorithms}, 3rd ed.,
+MIT Press, 2009. Chapter 29: Linear Programming.
+
+\bibitem{sympy}
+SymPy Development Team,
+\textit{SymPy: Python library for symbolic mathematics},
+\url{https://www.sympy.org}, 2024.
+
+\bibitem{flask}
+A. Ronacher et al.,
+\textit{Flask: A lightweight WSGI web application framework},
+\url{https://flask.palletsprojects.com}, 2024.
+
+\bibitem{chartjs}
+Chart.js Contributors,
+\textit{Chart.js: Simple yet flexible JavaScript charting},
+\url{https://www.chartjs.org}, 2024.
+
+\end{thebibliography}
+
+% ══════════════════════════════════════════════════════════════════════════
+\appendix
+\section{Phụ lục: Test cases}
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Test case chuẩn}
+
+\begin{table}[H]
+\centering
+\caption{Các test case kiểm thử}
+\label{tab:testcases}
+\begin{tabularx}{\textwidth}{lXcc}
+\toprule
+\textbf{TC} & \textbf{Bài toán} & \textbf{Kết quả mong đợi} & \textbf{Trạng thái} \\
+\midrule
+TC1 & $\max 3x_1+2x_2$, $x_1+x_2\leq4$, $2x_1+x_2\leq6$, $x_i\geq0$
+    & $x_1=2, x_2=2, z=10$ & ✓ \\
+TC2 & $\max 2x_1+3x_2+x_3$, $x_1+x_2+x_3\leq6$, $x_2+x_3\leq4$, $x_1+x_2\leq4$, $x_i\geq0$
+    & $x_1=2, x_2=2, x_3=2, z=12$ & ✓ \\
+TC3 & $\min -x_1-2x_2$, $2x_1+x_2\leq6$, $x_1+x_2\geq2$, $-x_1+x_2\geq3$, $x_i\geq0$
+    & $x_1=0, x_2=6, z=-12$ & ✓ \\
+TC4 & Bài toán vô nghiệm: $x_1\leq-1$, $x_1\geq0$
+    & \texttt{feasible=false} & ✓ \\
+TC5 & Hệ số phân số: $\frac{1}{3}x_1+\frac{2}{3}x_2\leq1$
+    & Kết quả exact & ✓ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Cấu trúc JSON response mẫu}
+
+\begin{lstlisting}[caption={JSON response cho TC1}, label={lst:json_response}]
+{
+  "feasible": true,
+  "solution": {"x1": "2", "x2": "2"},
+  "solution_numeric": {"x1": 2.0, "x2": 2.0},
+  "z": "10",
+  "z_numeric": 10.0,
+  "obj_type": "max",
+  "method": "algebraic",
+  "steps_constraints": [
+    {
+      "buoc": 0,
+      "tieu_de": "He ban dau (sau chuan hoa + bien z)",
+      "constraints": ["x1 + x2 <= 4", "2x1 + x2 <= 6",
+                      "-x1 <= 0", "-x2 <= 0", "-3x1 - 2x2 + z <= 0"],
+      "bi_loai": [], "moi_tao": []
+    },
+    {
+      "buoc": 1,
+      "tieu_de": "Sau khi loai x1",
+      "constraints": [...],
+      "bi_loai": [...], "moi_tao": [...]
+    }
+  ],
+  "reasoning": {
+    "steps": [
+      {"so_buoc": 1, "loai": "INFO", "tieu_de": "Bat dau giai", ...},
+      {"so_buoc": 2, "loai": "TINH_TOAN", "cong_thuc": "...", "ket_qua": "..."},
+      ...
+    ],
+    "tong_buoc": 42
+  },
+  "vertices": [
+    {"point": [0,0], "label": "A(0,0)", "z": 0, "is_optimal": false},
+    {"point": [2,2], "label": "C(2,2)", "z": 10, "is_optimal": true},
+    ...
+  ]
+}
+\end{lstlisting}
+
+\end{document}

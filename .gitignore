@@ -1,0 +1,15 @@
+# IDE & tools
+.vscode/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Output
+giai_trinh.txt
+
+# Env
+.env
+flask_session/
