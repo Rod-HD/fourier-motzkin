@@ -116,32 +116,46 @@
         <summary class="dep-explain-toggle">Giải thích mô hình ▾</summary>
         <div class="dep-explain">
           <p>
-            Trình biên dịch muốn <strong>song song hóa</strong> hoặc <strong>đảo thứ tự</strong>
-            các vòng lặp để tăng tốc. Điều đó chỉ an toàn khi không có hai lần lặp nào
-            <strong>ghi và đọc trùng cùng một ô nhớ</strong> của mảng.
+            <strong>Bài toán thực tế:</strong> trình biên dịch muốn
+            <strong>chạy song song</strong> các lần lặp để tăng tốc.
+            Nhưng nếu lần lặp này <em>đọc</em> một ô mà lần lặp khác đang <em>ghi</em>
+            vào đúng ô đó thì kết quả sẽ sai — gọi là <strong>phụ thuộc dữ liệu</strong>.
           </p>
-          <div class="dep-loop-box">
-            <div class="dep-loop-label">Mô hình vòng lặp lồng nhau (d vòng, mảng m chiều):</div>
-<pre class="dep-code">for i₁ = L₁ to U₁:
-  for i₂ = L₂ to U₂:
-    ...
-      for i_d = L_d to U_d:
-          A[ f₁(i), …, f_m(i) ]  =  …   ← GHI (write)
-          …  A[ g₁(i), …, g_m(i) ]  …   ← ĐỌC (read)
 
-Hàm chỉ số affine:
-  f_k(i) = a_{k,1}·i₁ + … + a_{k,d}·i_d + c_k^w   (hệ số ghi chiều k)
-  g_k(i) = b_{k,1}·i₁ + … + b_{k,d}·i_d + c_k^r   (hệ số đọc chiều k)</pre>
+          <div class="dep-loop-box" style="margin-bottom:10px">
+            <div class="dep-loop-label">Ví dụ đơn giản nhất (1 vòng, mảng 1 chiều):</div>
+<pre class="dep-code"><span class="kw">for</span> i <span class="kw">in</span> <span class="kw">range</span>(0, 11):
+    <span class="arr-w" title="GHI vào A[i]">A[i]</span> = <span class="arr-r" title="ĐỌC từ A[i-1]">A[i-1]</span> + 1   <span class="cmt"># mỗi phần tử = phần tử trước + 1</span></pre>
+            <div style="color:#86efac;font-size:.8rem;margin-top:6px">
+              → Lần lặp i=1 cần đọc A[0] mà lần lặp i=0 vừa ghi vào A[0].
+              Nếu chạy song song, i=1 có thể đọc A[0] <em>trước khi</em> i=0 kịp ghi → sai kết quả.
+              Đây là phụ thuộc dữ liệu.
+            </div>
           </div>
+
           <p>
-            Tồn tại phụ thuộc khi có <strong>iw</strong> (vector lặp lần ghi) và
-            <strong>ir</strong> (vector lặp lần đọc) trong không gian lặp sao cho
-            <code>f_k(iw) = g_k(ir)</code> với mọi chiều k — tức là hệ ràng buộc tuyến tính
-            có nghiệm. Dùng <strong>Fourier–Motzkin</strong> kiểm tra tính khả thi.
+            <strong>Cách kiểm tra:</strong> hai lần lặp <code>iw</code> (ghi) và <code>ir</code> (đọc)
+            chạm cùng ô khi chỉ số ghi = chỉ số đọc, tức
+            <code>a·iw + c0 = b·ir + c1</code> với cả hai trong biên <code>[L, U]</code>.
+            Đây là một <strong>hệ ràng buộc tuyến tính</strong> — dùng
+            <strong>Fourier–Motzkin</strong> kiểm tra xem hệ có nghiệm không.
           </p>
-          <p class="dep-note">
-            Quy trình: <strong>① GCD test</strong> — kiểm tra điều kiện chia hết
-            (<code>gcd(a,b) | c</code>), chính xác trên số nguyên, rất rẻ.
+
+          <div class="dep-loop-box">
+            <div class="dep-loop-label">Mô hình tổng quát (d vòng lồng, mảng m chiều):</div>
+<pre class="dep-code"><span class="kw">for</span> i1 <span class="kw">in</span> <span class="kw">range</span>(L1, U1+1):
+  <span class="kw">for</span> i2 <span class="kw">in</span> <span class="kw">range</span>(L2, U2+1):
+    ...
+      <span class="arr-w" title="GHI">A[ f1(i), …, fm(i) ]</span>  =  …
+      …  <span class="arr-r" title="ĐỌC">A[ g1(i), …, gm(i) ]</span>  …
+
+<span class="cmt"># fk(i) = ak1·i1 + … + akd·id + ck_w  (hệ số ghi chiều k)</span>
+<span class="cmt"># gk(i) = bk1·i1 + … + bkd·id + ck_r  (hệ số đọc chiều k)</span></pre>
+          </div>
+
+          <p class="dep-note" style="margin-top:10px">
+            <strong>Quy trình 2 tầng:</strong>
+            <strong>① GCD test</strong> — kiểm tra điều kiện chia hết, chính xác trên số nguyên, rất rẻ.
             Nếu không thỏa → chắc chắn không phụ thuộc, dừng ngay.
             Nếu thỏa → <strong>② FM trên nới lỏng số thực</strong> (bảo thủ: có thể báo thừa).
           </p>
