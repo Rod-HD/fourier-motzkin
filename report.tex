@@ -509,12 +509,12 @@ mỗi $i_k$ chạy trong biên $[L_k, U_k]$, và một mảng $m$ chiều đư�
 bằng hàm chỉ số \emph{affine}:
 
 \begin{lstlisting}[language=Python, caption={Mô hình vòng lặp lồng nhau tổng quát}]
-for i_1 in range(L_1, U_1+1):
-  for i_2 in range(L_2, U_2+1):
+for i1 in range(L1, U1+1):
+  for i2 in range(L2, U2+1):
     ...
-      for i_d in range(L_d, U_d+1):
-          A[f_1(i), ..., f_m(i)] = ...   # GHI
-          ... A[g_1(i), ..., g_m(i)] ... # DOC
+      for id in range(Ld, Ud+1):
+          A[f1(i), ..., fm(i)] = ...   # GHI
+          ... A[g1(i), ..., gm(i)] ... # DOC
 \end{lstlisting}
 
 Hàm chỉ số affine chiều $k$:
