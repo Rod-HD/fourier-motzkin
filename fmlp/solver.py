@@ -1,0 +1,408 @@
+"""Bộ giải LP bằng khử Fourier-Motzkin (phiên bản 2).
+
+Chiến lược (Bertsimas--Tsitsiklis, Vanderbei):
+
+1.  Đưa hệ về dạng ma trận ``Ax <= b`` (đã làm trong :mod:`fmlp.model`).
+2.  Thêm biến mục tiêu ``z``:
+        * ``max c^T x``  ->  thêm  ``z <= c^T x``   (tức ``z - c^T x <= 0``);
+        * ``min c^T x``  ->  thêm  ``z <= -c^T x``  rồi lấy ``z* = -z_max``
+          (dùng đẳng thức ``min f = -max(-f)``).
+3.  Khử lần lượt ``x_1, ..., x_n`` (mỗi lần là một phép chiếu đa diện), giữ
+    lại biến ``z``. Sau mỗi bước lọc bớt ràng buộc dư thừa hiển nhiên.
+4.  Hệ còn lại chỉ chứa ``z``. Cận trên nhỏ nhất cho ``z_max``; nếu có dòng
+    mâu thuẫn ``0 <= b<0`` thì vô nghiệm (kèm chứng chỉ Farkas), nếu không có
+    cận trên thì không bị chặn.
+5.  Thế ngược (back-substitution) để khôi phục một nghiệm tối ưu ``x``.
+
+Toàn bộ phép tính chạy trên ``Fraction`` nên chính xác tuyệt đối.
+"""
+
+from __future__ import annotations
+
+from fractions import Fraction
+from typing import Any, Dict, List, Optional
+
+from .eliminate import eliminate_variable, prune_redundant, split_by_sign
+from .model import LinearProgram, Row, format_row, var_name
+from .rational import Number, format_decimal, format_fraction
+from .trace import Trace
+
+POS_INF = None  # quy ước: None nghĩa là không có cận
+
+
+class Solution:
+    """Kết quả giải LP."""
+
+    FEASIBLE = "feasible"
+    INFEASIBLE = "infeasible"
+    UNBOUNDED = "unbounded"
+
+    def __init__(self, status: str, x: Optional[List[Number]] = None,
+                 z: Optional[Number] = None):
+        self.status = status
+        self.x = x or []
+        self.z = z
+
+
+def _build_objective_row(lp: LinearProgram) -> Row:
+    """Tạo ràng buộc gắn biến z vào hệ, theo kiểu max/min."""
+    n = lp.n
+    if lp.sense == "max":
+        # z <= c^T x  <=>  z - c^T x <= 0
+        coeffs = [-c for c in lp.obj] + [Fraction(1)]
+    else:
+        # z <= -c^T x <=>  z + c^T x <= 0
+        coeffs = [c for c in lp.obj] + [Fraction(1)]
+    return Row(coeffs, Fraction(0), cert={})
+
+
+def _extend(rows: List[Row], width: int) -> None:
+    """Bổ sung cột 0 để mọi Row có cùng số chiều (kể cả cột z)."""
+    for r in rows:
+        while len(r.coeffs) < width:
+            r.coeffs.append(Fraction(0))
+
+
+def _bounds_on_variable(rows: List[Row], k: int, known: Dict[int, Number]) -> Any:
+    """Tìm khoảng [lo, hi] cho biến *k* sau khi thế các biến đã biết.
+
+    ``known`` ánh xạ {chỉ số biến -> giá trị}. Trả về (lo, hi) với lo/hi có thể
+    là None nghĩa là vô cùng.
+    """
+    lo: Optional[Number] = None
+    hi: Optional[Number] = None
+    for r in rows:
+        a = r.coeff(k)
+        if a == 0:
+            continue
+        # Chuyển a*x_k + sum_{j != k} a_j*x_j <= b  thành cận của x_k.
+        residual = r.rhs
+        for j, aj in enumerate(r.coeffs):
+            if j == k or aj == 0:
+                continue
+            if j in known:
+                residual -= aj * known[j]
+        bound = residual / a
+        if a > 0:  # x_k <= bound
+            hi = bound if hi is None or bound < hi else hi
+        else:      # x_k >= bound
+            lo = bound if lo is None or bound > lo else lo
+    return lo, hi
+
+
+def _pick_value(lo: Optional[Number], hi: Optional[Number]) -> Number:
+    """Chọn một giá trị hợp lệ trong khoảng [lo, hi].
+
+    Ưu tiên cận dưới hữu hạn (cho nghiệm tại đỉnh), rồi đến cận trên, cuối cùng
+    là 0 khi cả hai vô cùng. Tại nghiệm tối ưu mọi giá trị trong khoảng đều cho
+    cùng ``z*`` nên lựa chọn này luôn hợp lệ.
+    """
+    if lo is not None:
+        return lo
+    if hi is not None:
+        return hi
+    return Fraction(0)
+
+
+def _expr_without(row: Row, k: int, n: int, scale: Number) -> str:
+    """Diễn đạt phần ``(b - các hạng tử khác)/|a_k|`` của một ràng buộc.
+
+    Dùng để in dạng ``x_k <= <biểu thức>`` hoặc ``x_k >= <biểu thức>`` khi cô
+    lập biến ``x_k``. ``scale`` là ``|a_k|`` để chia. Các hạng tử của biến khác
+    được CHUYỂN VẾ nên đổi dấu.
+    """
+    parts: List[str] = []
+    const = row.rhs / scale
+    if const != 0 or all(row.coeff(j) == 0 for j in range(row.width()) if j != k):
+        parts.append(format_fraction(const))
+    for j in range(row.width()):
+        if j == k or row.coeff(j) == 0:
+            continue
+        coef = -row.coeff(j) / scale  # chuyển vế -> đổi dấu
+        name = var_name(j, n)
+        if coef == 1:
+            term = f"+ {name}"
+        elif coef == -1:
+            term = f"- {name}"
+        elif coef > 0:
+            term = f"+ {format_fraction(coef)}{name}"
+        else:
+            term = f"- {format_fraction(-coef)}{name}"
+        parts.append(term)
+    if not parts:
+        return "0"
+    text = " ".join(parts)
+    # gọn dấu đầu
+    if text.startswith("+ "):
+        text = text[2:]
+    elif text.startswith("- "):
+        text = "-" + text[2:]
+    return text
+
+
+def _as_bound(row: Row, k: int, n: int):
+    """Trả về (kiểu, chuỗi) mô tả ràng buộc khi cô lập ``x_k``.
+
+    kiểu ∈ {"upper", "lower", "none"}:
+      * "upper": ``x_k <= <expr>``  (hệ số a_k > 0),
+      * "lower": ``x_k >= <expr>``  (hệ số a_k < 0),
+      * "none":  ràng buộc không chứa x_k.
+    Chuỗi trả về là vế phải ``<expr>`` đã chia cho |a_k|.
+    """
+    a = row.coeff(k)
+    if a == 0:
+        return "none", format_row(row, n)
+    expr = _expr_without(row, k, n, abs(a))
+    return ("upper" if a > 0 else "lower"), expr
+
+
+def solve(lp: LinearProgram, trace: Optional[Trace] = None) -> Solution:
+    """Giải bài toán LP, ghi vết các bước nếu *trace* được cung cấp."""
+    tr = trace if trace is not None else Trace()
+    n = lp.n
+    z_idx = n
+    width = n + 1
+
+    obj_str = _format_linear(lp.obj, n)
+    tr.add(
+        "Khởi tạo bài toán",
+        f"Cần {lp.sense} z = {obj_str}, với {len(lp.rows)} ràng buộc đã đưa về dạng ≤.\n"
+        "Ý tưởng: thêm biến z gắn với hàm mục tiêu, rồi khử lần lượt "
+        f"{', '.join(var_name(i, n) for i in range(n))} để hệ chỉ còn z, từ đó đọc ra z tối ưu.",
+    )
+
+    # Bước thêm biến z.
+    rows: List[Row] = [r.copy() for r in lp.rows]
+    _extend(rows, width)
+    obj_row = _build_objective_row(lp)
+    rows.append(obj_row)
+    if lp.sense == "max":
+        why_z = f"Với bài toán max, ta muốn z ≤ {obj_str}, viết lại thành {format_row(obj_row, n)}."
+    else:
+        why_z = (f"Với bài toán min, dùng đẳng thức min = −max(−mục tiêu): đặt z ≤ −({obj_str}), "
+                 f"viết lại thành {format_row(obj_row, n)}. Tìm z_max rồi lấy z* = −z_max.")
+    tr.add("Gắn biến mục tiêu z vào hệ", why_z)
+
+    snapshots: List[List[Row]] = []  # hệ ngay trước mỗi lần khử biến x_k
+    steps: List[Dict[str, Any]] = [{
+        "step": 0,
+        "title": "Hệ ban đầu (sau khi gắn biến z)",
+        "rows": [format_row(r, n) for r in rows],
+    }]
+
+    current = prune_redundant(rows)
+
+    # Khử x_1 .. x_n.
+    for k in range(n):
+        snapshots.append([r.copy() for r in current])
+        vk = var_name(k, n)
+        lower, upper, none = split_by_sign(current, k)
+
+        # (1) Cô lập x_k trong từng ràng buộc có chứa nó.
+        upper_exprs = [_expr_without(r, k, n, abs(r.coeff(k))) for r in upper]
+        lower_exprs = [_expr_without(r, k, n, abs(r.coeff(k))) for r in lower]
+        lines = [f"Cô lập {vk} trong mỗi ràng buộc có chứa nó:"]
+        for r, e in zip(upper, upper_exprs):
+            lines.append(f"   từ  {format_row(r, n)}   ⟹   {vk} ≤ {e}")
+        for r, e in zip(lower, lower_exprs):
+            lines.append(f"   từ  {format_row(r, n)}   ⟹   {vk} ≥ {e}")
+        if none:
+            lines.append(f"   {len(none)} ràng buộc KHÔNG chứa {vk} (sẽ giữ nguyên): "
+                         + "; ".join(format_row(r, n) for r in none))
+        tr.add(f"Khử {vk} — bước 1: tách thành chặn trên / chặn dưới", "\n".join(lines))
+
+        # (2) Nguyên lý ghép cặp.
+        tr.add(
+            f"Khử {vk} — bước 2: điều kiện tồn tại {vk}",
+            f"{vk} tồn tại khi và chỉ khi MỌI chặn dưới ≤ MỌI chặn trên. "
+            f"Vậy ghép từng cặp (chặn dưới, chặn trên): {len(lower)} × {len(upper)} "
+            f"= {len(lower) * len(upper)} bất phương trình mới (đã loại {vk}).",
+        )
+
+        # (3) Liệt kê từng cặp ghép cụ thể.
+        eliminated = eliminate_variable(current, k)
+        pair_lines: List[str] = []
+        for le in lower_exprs:
+            for ue in upper_exprs:
+                pair_lines.append(f"   {le} ≤ {vk} ≤ {ue}   ⟹   {le} ≤ {ue}")
+        if pair_lines:
+            tr.add(f"Khử {vk} — bước 3: ghép cặp và rút gọn", "\n".join(pair_lines))
+
+        # (4) Lọc dư thừa, nêu rõ giữ gì / bỏ gì.
+        before = len(eliminated)
+        kept = prune_redundant(eliminated)
+        removed = before - len(kept)
+        keep_lines = [f"Tổng cộng {before} ràng buộc sau khi ghép "
+                      f"({len(lower) * len(upper)} mới + {len(none)} không chứa {vk})."]
+        if removed > 0:
+            keep_lines.append(
+                f"Lọc bỏ {removed} ràng buộc dư thừa (luôn đúng dạng 0 ≤ số dương, hoặc bị một "
+                f"ràng buộc chặt hơn cùng hướng làm trội). Giữ lại {len(kept)} ràng buộc:")
+        else:
+            keep_lines.append(f"Không có ràng buộc dư thừa. Giữ lại {len(kept)} ràng buộc:")
+        for r in kept:
+            keep_lines.append(f"   {format_row(r, n)}")
+        tr.add(f"Khử {vk} — bước 4: giữ lại hệ rút gọn", "\n".join(keep_lines))
+
+        current = kept
+        steps.append({
+            "step": k + 1,
+            "title": f"Sau khi khử {vk}",
+            "rows": [format_row(r, n) for r in current],
+        })
+
+    # Phân tích hệ chỉ còn biến z.
+    result = _analyze_z_system(current, z_idx, lp, tr)
+    if result.status != Solution.FEASIBLE:
+        return _finish(result, lp, steps, tr, snapshots, None)
+
+    z_max = result.z
+    z_star = z_max if lp.sense == "max" else -z_max
+    if lp.sense == "max":
+        tr.add("Giá trị tối ưu",
+               f"z_max = {format_fraction(z_max)} = {format_decimal(z_star)}. "
+               f"Vì bài toán max nên z* = z_max = {format_fraction(z_star)}.")
+    else:
+        tr.add("Giá trị tối ưu",
+               f"z_max = {format_fraction(z_max)}. Bài toán min nên z* = −z_max = "
+               f"{format_fraction(z_star)} = {format_decimal(z_star)}.")
+
+    # Back-substitution: khôi phục x từ x_n về x_1.
+    x = _back_substitute(snapshots, z_max, n, tr)
+    sol = Solution(Solution.FEASIBLE, x=x, z=z_star)
+    return _finish(sol, lp, steps, tr, snapshots, x)
+
+
+def _analyze_z_system(rows: List[Row], z_idx: int, lp: LinearProgram,
+                      trace: Trace) -> Solution:
+    """Đọc nghiệm từ hệ chỉ còn biến z: vô nghiệm / không bị chặn / z_max."""
+    uppers: List[Number] = []
+    upper_strs: List[str] = []
+    for r in rows:
+        # Bỏ qua ràng buộc còn sót hệ số x_j (không phải cận thực của z).
+        if any(r.coeff(j) != 0 for j in range(z_idx)):
+            continue
+        a = r.coeff(z_idx)
+        if a == 0:
+            if r.rhs < 0:
+                cert_str = _format_cert(r.cert)
+                trace.warn(
+                    "Phát hiện mâu thuẫn → bài toán VÔ NGHIỆM",
+                    f"Sau khi khử hết các biến, còn lại ràng buộc 0 ≤ {format_fraction(r.rhs)} "
+                    "— điều không thể xảy ra. Vậy miền khả thi rỗng.\n"
+                    f"Chứng chỉ Farkas (cộng các ràng buộc gốc với hệ số không âm sẽ ra mâu "
+                    f"thuẫn này): {cert_str}.",
+                )
+                return Solution(Solution.INFEASIBLE)
+            continue
+        if a > 0:
+            uppers.append(r.rhs / a)
+            upper_strs.append(f"z ≤ {format_fraction(r.rhs / a)}")
+
+    if not uppers:
+        trace.warn(
+            "Không có cận trên cho z → bài toán KHÔNG BỊ CHẶN",
+            "Sau khi khử hết các biến, không còn ràng buộc nào chặn trên z. "
+            "Hàm mục tiêu tăng vô hạn theo hướng tối ưu.",
+        )
+        return Solution(Solution.UNBOUNDED)
+
+    z_max = min(uppers)
+    trace.add(
+        "Đọc z tối ưu từ hệ chỉ còn biến z",
+        f"Các ràng buộc chỉ còn z cho: {'; '.join(upper_strs)}.\n"
+        f"z lớn nhất thỏa tất cả là z_max = min({', '.join(format_fraction(u) for u in uppers)}) "
+        f"= {format_fraction(z_max)}.",
+    )
+    return Solution(Solution.FEASIBLE, z=z_max)
+
+
+def _back_substitute(snapshots: List[List[Row]], z_max: Number, n: int,
+                     trace: Trace) -> List[Number]:
+    """Thế ngược tìm x_n..x_1 từ các ảnh chụp hệ trước mỗi bước khử."""
+    trace.add(
+        "Thế ngược để tìm nghiệm x",
+        f"Đã biết z = {format_fraction(z_max)}. Đi ngược từ "
+        f"{var_name(n - 1, n)} về {var_name(0, n)}: tại mỗi biến, thế các giá trị đã biết vào "
+        "hệ ngay trước khi khử biến đó để được khoảng giá trị, rồi chọn một giá trị trong khoảng.",
+    )
+    known: Dict[int, Number] = {n: z_max}
+    x: List[Number] = [Fraction(0)] * n
+    for k in range(n - 1, -1, -1):
+        lo, hi = _bounds_on_variable(snapshots[k], k, known)
+        val = _pick_value(lo, hi)
+        known[k] = val
+        x[k] = val
+        lo_s = format_fraction(lo) if lo is not None else "−∞"
+        hi_s = format_fraction(hi) if hi is not None else "+∞"
+        trace.add(
+            f"Tìm {var_name(k, n)}",
+            f"Thế các giá trị đã biết, ràng buộc cho {lo_s} ≤ {var_name(k, n)} ≤ {hi_s}. "
+            f"Chọn {var_name(k, n)} = {format_fraction(val)}.",
+        )
+    return x
+
+
+def _finish(sol: Solution, lp: LinearProgram, steps: List[Dict[str, Any]],
+            trace: Trace, snapshots: List[List[Row]],
+            x: Optional[List[Number]]) -> Solution:
+    """Ghi kết luận cuối vào trace và kiểm tra nghiệm (nếu khả thi)."""
+    n = lp.n
+    if sol.status == Solution.FEASIBLE and x is not None:
+        ok = _verify(lp, x)
+        sol_str = ", ".join(f"{var_name(i, n)} = {format_fraction(x[i])}" for i in range(n))
+        trace.result(
+            "Kết luận: bài toán có nghiệm tối ưu",
+            f"{sol_str}\nz* = {format_fraction(sol.z)}\n"
+            f"Kiểm tra lại toàn bộ ràng buộc gốc: {'đạt' if ok else 'KHÔNG đạt'}.",
+        )
+    elif sol.status == Solution.INFEASIBLE:
+        trace.result("Kết luận: bài toán VÔ NGHIỆM (miền khả thi rỗng).")
+    elif sol.status == Solution.UNBOUNDED:
+        trace.result("Kết luận: bài toán KHÔNG BỊ CHẶN.")
+    sol.steps = steps  # type: ignore[attr-defined]
+    return sol
+
+
+def _verify(lp: LinearProgram, x: List[Number]) -> bool:
+    """Thế nghiệm vào mọi ràng buộc đã chuẩn hóa để xác nhận khả thi."""
+    for r in lp.rows:
+        lhs = sum((r.coeff(j) * x[j] for j in range(lp.n)), Fraction(0))
+        if lhs > r.rhs:
+            return False
+    return True
+
+
+def _format_linear(coeffs: List[Number], n: int) -> str:
+    parts: List[str] = []
+    for i in range(n):
+        a = coeffs[i]
+        if a == 0:
+            continue
+        name = var_name(i, n)
+        if not parts:
+            if a == 1:
+                parts.append(name)
+            elif a == -1:
+                parts.append(f"-{name}")
+            else:
+                parts.append(f"{format_fraction(a)}{name}")
+        else:
+            if a == 1:
+                parts.append(f"+ {name}")
+            elif a == -1:
+                parts.append(f"- {name}")
+            elif a > 0:
+                parts.append(f"+ {format_fraction(a)}{name}")
+            else:
+                parts.append(f"- {format_fraction(-a)}{name}")
+    return " ".join(parts) if parts else "0"
+
+
+def _format_cert(cert: Dict[int, Number]) -> str:
+    if not cert:
+        return "(rỗng)"
+    return " + ".join(
+        f"{format_fraction(v)}·(ràng buộc #{idx + 1})"
+        for idx, v in sorted(cert.items())
+    )

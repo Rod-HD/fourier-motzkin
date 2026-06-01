@@ -1,16 +1,28 @@
 # IDE & tools
 .vscode/
 
+# AI tools
+.kiro/
+.claude/
+.cursor/
+.copilot/
+
 # Python
 .venv/
 __pycache__/
 *.pyc
 *.pyo
 
+# Build artifacts
+report.pdf
+
+# Sensitive assets
+UIT.png
+
 # Output
-giai_trinh.txt
+giai_trinh*.txt
+giai_trinh_v2.txt
 
 # Env
-.venv
 .env
 flask_session/
