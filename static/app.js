@@ -56,8 +56,9 @@ function renderObjective(n) {
       term.appendChild(plus);
     }
     const inp = document.createElement("input");
-    inp.type = "number"; inp.step = "any"; inp.className = "coef oc";
+    inp.type = "text"; inp.className = "coef oc";
     inp.value = old[i] !== undefined ? old[i] : "1";
+    inp.placeholder = "vd: 1/2";
     inp.addEventListener("input", previewObj);
     term.appendChild(inp);
     const lb = document.createElement("span");
@@ -87,14 +88,29 @@ function coefCell(i, val) {
 function previewObj() {
   const t = [];
   document.querySelectorAll(".oc").forEach((inp, i) => {
-    const c = parseFloat(inp.value);
-    if (!c) return;
+    const raw = inp.value.trim();
+    if (!raw) return;
     const name = vlab(i);
-    if (!t.length) t.push(c === 1 ? name : c === -1 ? "−" + name : c + name);
-    else if (c < 0) t.push("− " + (c === -1 ? name : Math.abs(c) + name));
-    else t.push("+ " + (c === 1 ? name : c + name));
+    const num = evalFrac(raw);
+    if (num === null) { t.push(`${raw}·${name}`); return; }
+    if (num === 0) return;
+    const disp = raw.includes("/") ? raw : (num === Math.trunc(num) ? String(num) : raw);
+    if (!t.length) {
+      t.push(num === 1 ? name : num === -1 ? "−" + name : disp + name);
+    } else if (num < 0) {
+      t.push("− " + (num === -1 ? name : (raw.startsWith("-") ? raw.slice(1) : raw) + name));
+    } else {
+      t.push("+ " + (num === 1 ? name : disp + name));
+    }
   });
   document.getElementById("objPrev").textContent = t.length ? "z = " + t.join(" ") : "z = 0";
+}
+
+function evalFrac(s) {
+  const m = s.match(/^\s*(-?\d+)\s*\/\s*(-?\d+)\s*$/);
+  if (m) { const d = parseInt(m[2]); return d ? parseInt(m[1]) / d : null; }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
 }
 
 /* ---- ràng buộc form ---- */
@@ -130,7 +146,7 @@ function loadExample() {
   setMode("form"); setSense("max"); setMethod("algebraic");
   renderObjective(2);
   const oc = document.querySelectorAll(".oc");
-  oc[0].value = 3; oc[1].value = 2;
+  oc[0].value = "3"; oc[1].value = "2";
   document.getElementById("cList").innerHTML = "";
   addRow([1, 1], "<=", 4);
   addRow([2, 1], "<=", 6);
@@ -163,7 +179,7 @@ function destroyChart() {
 
 /* ---- thu thập input ---- */
 function collect() {
-  const obj = [...document.querySelectorAll(".oc")].map((i) => parseFloat(i.value) || 0);
+  const obj = [...document.querySelectorAll(".oc")].map((i) => i.value.trim() || "0");
   if (mode === "text") {
     return { n: N, obj, sense, method, input_mode: "text", constraints_text: document.getElementById("cText").value };
   }
