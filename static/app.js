@@ -457,24 +457,44 @@ function drawChart(chartData, d) {
   });
 
   // ── Plugin 1: tô miền nghiệm ──────────────────────────────────────────
+  // feasPts >= 3 → đa giác có diện tích; = 2 → miền suy biến thành ĐOẠN
+  // (vd ràng buộc đẳng thức x1+x2=4); = 1 → miền là MỘT điểm.
   const feasibleRegionPlugin = {
     id: "feasibleRegion",
     beforeDatasetsDraw(ch) {
-      if (feasPts.length < 3) return;
+      if (feasPts.length < 1) return;
       const xs = ch.scales.x, ys = ch.scales.y;
-      const sorted = [...feasPts].sort((a, b) =>
-        Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+      const px = (p) => xs.getPixelForValue(p[0]);
+      const py = (p) => ys.getPixelForValue(p[1]);
       const g = ch.ctx;
       g.save();
-      g.beginPath();
-      g.moveTo(xs.getPixelForValue(sorted[0][0]), ys.getPixelForValue(sorted[0][1]));
-      for (let i = 1; i < sorted.length; i++)
-        g.lineTo(xs.getPixelForValue(sorted[i][0]), ys.getPixelForValue(sorted[i][1]));
-      g.closePath();
-      g.fillStyle = "rgba(15,118,110,0.16)";
-      g.fill();
-      g.strokeStyle = "rgba(15,118,110,0.55)";
-      g.lineWidth = 2; g.setLineDash([]); g.stroke();
+      if (feasPts.length === 1) {
+        // miền suy biến thành một điểm: vẽ chấm tròn nhấn
+        g.beginPath();
+        g.arc(px(feasPts[0]), py(feasPts[0]), 6, 0, 2 * Math.PI);
+        g.fillStyle = "rgba(15,118,110,0.16)";
+        g.fill();
+        g.strokeStyle = "rgba(15,118,110,0.9)";
+        g.lineWidth = 2.5; g.setLineDash([]); g.stroke();
+      } else if (feasPts.length === 2) {
+        // miền suy biến thành đoạn thẳng: vẽ đoạn đậm nối 2 đỉnh
+        g.beginPath();
+        g.moveTo(px(feasPts[0]), py(feasPts[0]));
+        g.lineTo(px(feasPts[1]), py(feasPts[1]));
+        g.strokeStyle = "rgba(15,118,110,0.85)";
+        g.lineWidth = 6; g.lineCap = "round"; g.setLineDash([]); g.stroke();
+      } else {
+        const sorted = [...feasPts].sort((a, b) =>
+          Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+        g.beginPath();
+        g.moveTo(px(sorted[0]), py(sorted[0]));
+        for (let i = 1; i < sorted.length; i++) g.lineTo(px(sorted[i]), py(sorted[i]));
+        g.closePath();
+        g.fillStyle = "rgba(15,118,110,0.16)";
+        g.fill();
+        g.strokeStyle = "rgba(15,118,110,0.55)";
+        g.lineWidth = 2; g.setLineDash([]); g.stroke();
+      }
       g.restore();
     },
   };
