@@ -217,6 +217,29 @@ def solve(lp: LinearProgram, trace: Optional[Trace] = None) -> Solution:
             keep_lines.append(f"   {format_row(r, n)}")
         tr.add(f"Khử {vk} - bước 4: giữ lại hệ rút gọn", "\n".join(keep_lines))
 
+        # (5) Chú thích sư phạm: nếu MỌI dòng còn chứa z đều bị loại ở bước này
+        # thì z mất liên kết với hệ - đó chính là dấu hiệu bài toán không bị chặn.
+        had_z = any(r.coeff(z_idx) != 0 for r in current)
+        still_z = any(r.coeff(z_idx) != 0 for r in kept)
+        if had_z and not still_z:
+            z_row = next(r for r in current if r.coeff(z_idx) != 0)
+            if z_row.coeff(k) < 0:
+                # dòng z cho chặn DƯỚI của x_k, cần một chặn TRÊN để ghép cặp
+                why_dir = f"{vk} không có chặn trên (không ràng buộc nào có hệ số {vk} dương)"
+                grow = "+∞"
+            else:
+                # dòng z cho chặn TRÊN của x_k, cần một chặn DƯỚI để ghép cặp
+                why_dir = f"{vk} không có chặn dưới (không ràng buộc nào có hệ số {vk} âm)"
+                grow = "-∞"
+            tr.warn(
+                f"Dòng mục tiêu (chứa z) bị loại khi khử {vk}",
+                f"Dòng gắn z vào hệ vẫn còn chứa {vk}, nhưng {why_dir}. Phép ghép cặp "
+                f"Fourier-Motzkin cần mỗi chặn dưới đi với một chặn trên; thiếu một phía nên "
+                f"KHÔNG có cặp nào và dòng này bị loại hoàn toàn. Nói cách khác {vk} có thể "
+                f"tiến tới {grow}, kéo theo z không còn bị chặn. Đây chính là dấu hiệu bài toán "
+                f"KHÔNG BỊ CHẶN (sẽ được xác nhận ở bước phân tích hệ chỉ còn z).",
+            )
+
         current = kept
         steps.append({
             "step": k + 1,

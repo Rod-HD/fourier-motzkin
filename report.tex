@@ -358,7 +358,7 @@ hợp về hệ gốc cho đúng vector $\vy \ge \mathbf{0}$ thỏa Bổ đề F
 $\{\text{chỉ số ràng buộc gốc} \mapsto \text{nhân tử} \ge 0\}$, được cộng dồn
 theo đúng trọng số $\alpha, \beta$ ở mỗi lần ghép cặp.
 
-\subsection{Hãm bùng nổ tổ hợp bằng lọc dư thừa}
+\subsection{Giảm bùng nổ tổ hợp bằng lọc dư thừa}
 \label{sec:prune}
 
 Điểm yếu  của Fourier--Motzkin: khi khử $x_k$, số ràng buộc mới sinh là
@@ -508,13 +508,15 @@ Xét $d$ vòng lặp lồng nhau với vector lặp $\mathbf{i} = (i_1,\ldots,i_
 mỗi $i_k$ chạy trong biên $[L_k, U_k]$, và một mảng $m$ chiều được truy cập
 bằng hàm chỉ số \emph{affine}:
 
-\begin{lstlisting}[language=Python, caption={Mô hình vòng lặp lồng nhau tổng quát}]
-for i1 in range(L1, U1+1):
-  for i2 in range(L2, U2+1):
+\begin{lstlisting}[language=Python,
+    caption={Mô hình vòng lặp lồng nhau tổng quát},
+    escapechar=!]
+for !$i_1$! in range(!$L_1$!, !$U_1$!+1):
+  for !$i_2$! in range(!$L_2$!, !$U_2$!+1):
     ...
-      for id in range(Ld, Ud+1):
-          A[f1(i), ..., fm(i)] = ...   # GHI
-          ... A[g1(i), ..., gm(i)] ... # DOC
+      for !$i_d$! in range(!$L_d$!, !$U_d$!+1):
+          A[!$f_1$!(i), ..., !$f_m$!(i)] = ...   # GHI
+          ... A[!$g_1$!(i), ..., !$g_m$!(i)] ... # DOC
 \end{lstlisting}
 
 Hàm chỉ số affine chiều $k$:
@@ -532,7 +534,7 @@ mảng} trên mọi chiều:
     \label{eq:dep}
 \end{equation}
 Hệ \eqref{eq:dep} có $2d$ biến và $m + 4d$ ràng buộc. Câu hỏi "có phụ thuộc
-không?" trở thành "hệ \eqref{eq:dep} có khả thi không?" — và khử
+không?" trở thành "hệ \eqref{eq:dep} có khả thi không?" - và khử
 Fourier-Motzkin trả lời được.
 
 \subsection{Quy trình kiểm tra hai tầng}
@@ -545,7 +547,7 @@ c_k^{(r)} - c_k^{(w)}$ có nghiệm nguyên khi và chỉ khi ước chung lớn
 tất cả hệ số chia hết vế phải (định lý Bézout). Nếu bất kỳ chiều nào không thỏa
 điều kiện này thì chắc chắn không có phụ thuộc, dừng ngay mà không cần chạy FM.
 
-\textbf{Tầng 2 — FM trên nới lỏng số thực} (điều kiện cần, bảo thủ). Nếu qua
+\textbf{Tầng 2 — FM trên số thực} (điều kiện cần, bảo thủ). Nếu qua
 GCD test, chạy khử Fourier-Motzkin để kiểm tra tính khả thi. Kết luận:
 \begin{itemize}
     \item Hệ thực \textbf{vô nghiệm} $\Rightarrow$ hệ nguyên cũng vô nghiệm
@@ -565,7 +567,7 @@ Với vòng lặp $i \in [0, 10]$:
     \item \textbf{Ghi $A[2i]$, đọc $A[2i+1]$}: GCD$(2,2)=2$ không chia hết $1$
           $\Rightarrow$ loại ngay bởi GCD test, không cần FM.
     \item \textbf{2 vòng lồng, mảng 2 chiều}: ghi $A[i_1][i_2]$, đọc
-          $A[i_1-1][i_2+1]$ — hệ 4 biến, khả thi tại
+          $A[i_1-1][i_2+1]$ - hệ 4 biến, khả thi tại
           $\mathbf{i}_w=(0,1), \mathbf{i}_r=(1,0)$ $\Rightarrow$ có phụ thuộc.
 \end{itemize}
 \end{example}
@@ -597,7 +599,8 @@ frontend. Gói lõi \texttt{fmlp} tách bạch từng nhiệm vụ:
     \item \texttt{fmlp/service.py} --- nối lõi với tầng web (serialize JSON) và
           xuất file \texttt{.txt}.
     \item \texttt{app.py} --- Flask: \texttt{GET /}, \texttt{POST /api/solve},
-          \texttt{POST /api/depend}, \texttt{POST /api/export}.
+          \texttt{POST /api/depend\_general}, \texttt{POST /api/depend} (wrapper
+          1 vòng tương thích ngược), \texttt{POST /api/export}.
     \item \texttt{templates/index.html}, \texttt{static/} --- giao diện (HTML +
           JS thuần + Chart.js).
 \end{itemize}
@@ -613,7 +616,7 @@ phân số như $1/3$ không bao giờ bị làm tròn, và hệ số ký hiệu
 
 \subsection{Cấu trúc dữ liệu cốt lõi}
 
-\begin{lstlisting}[caption={Lớp Row --- một bất đẳng thức kèm chứng chỉ Farkas (fmlp/model.py)}]
+\begin{lstlisting}[caption={Lớp Row - một bất đẳng thức kèm chứng chỉ Farkas (fmlp/model.py)}]
 @dataclass
 class Row:
     coeffs: List[Fraction]      # he so [a_1, ..., a_d] (co the gom ca z)
@@ -623,8 +626,7 @@ class Row:
 
 Việc lưu hệ ràng buộc bằng \emph{danh sách các \texttt{Row}}, mỗi \texttt{Row}
 giữ một mảng hệ số, cho phép thao tác nhóm theo dấu hệ số diễn ra nhanh và
-trực tiếp --- đúng tinh thần "mô hình hóa dữ liệu đầu vào dạng bảng số" của
-\cite{vanderbei2014}.
+trực tiếp.
 
 \subsection{Cách xây dựng bộ test}
 \label{sec:tests}
@@ -652,7 +654,7 @@ một bộ $(x_1, \ldots, x_n)$ là không hợp lý. Bộ test dùng hai tiêu 
 \end{enumerate}
 Với bài toán đặc biệt, kiểm \emph{trạng thái} (\texttt{feasible} /
 \texttt{infeasible} / \texttt{unbounded}) đúng kỳ vọng. Phương pháp hình học chỉ
-áp dụng cho $n = 2$ và miền giới nội; các case $n \ne 2$ hoặc không bị chặn
+áp dụng cho $n = 2$ và miền miền khả thi bị chặn; các case $n \ne 2$ hoặc không bị chặn
 được đánh dấu \texttt{SKIP}. Parser kiểm bằng cách so từng hệ số \emph{chính
 xác} (ví dụ $\sin(\pi/6)$ phải đúng $1/2$); riêng TXT1 kỳ vọng parser
 \emph{báo lỗi} vì $\sqrt{2}$ không hữu tỉ.
@@ -708,17 +710,17 @@ nhiều nghiệm tối ưu. Tiêu chí đánh giá (khả thi $+$ đúng $z^\ast
 
 \subsection{So khớp hai phương pháp}
 
-Với các bài toán hai biến giới nội (TC1, TC3, TC5, TC6, TC10), phương pháp đại
+Với các bài toán hai biến miền khả thi bị chặn (TC1, TC3, TC5, TC6, TC10), phương pháp đại
 số và hình học cho cùng $z^\ast$, xác nhận tính nhất quán. Phương pháp hình học
 còn cung cấp toàn bộ đỉnh và dữ liệu vẽ để kiểm tra trực quan. Riêng TC9 (không
-bị chặn) chỉ phương pháp đại số xử lý đúng --- đúng như giới hạn đã nêu.
+bị chặn) chỉ phương pháp đại số xử lý đúng - đúng như giới hạn đã nêu.
 
 \subsection{Độ chính xác nhờ số học hữu tỉ}
 
 Nhờ \texttt{Fraction}, các hệ số phân số được giữ nguyên dạng: TC5 cho
 $z^\ast = 3$ chính xác; TC10 cho $z^\ast = 2$. Parser quy $\sin(\pi/6)$ và
 $\cos(\pi/3)$ về đúng $1/2$ (TXT3), và \emph{từ chối} hệ số $\sqrt{2}$ vì không
-hữu tỉ (TXT1) --- một quyết định thiết kế nhất quán với việc làm việc trên
+hữu tỉ (TXT1) - một quyết định thiết kế nhất quán với việc làm việc trên
 trường $\Q$.
 
 \subsection{Phân tích độ phức tạp và thực nghiệm bùng nổ}
@@ -751,11 +753,10 @@ Dày 6 biến, 12 ràng buộc & không & $25 \to 66 \to 143 \to 436 \to 2061 \t
 \end{tabularx}
 \end{table}
 
-Khi không lọc, hệ 6 biến phình từ 25 lên \textbf{72\,307} ràng buộc --- đúng đà
-bùng nổ mũ kép. Bước lọc dư thừa giữ hệ luôn nhỏ. Đây là minh chứng định lượng
-cho cả \emph{điểm yếu cố hữu} lẫn \emph{giá trị của việc khử dư thừa}
+Khi không lọc, hệ 6 tăng từ 25 lên \textbf{72\,307} ràng buộc - bùng nổ mũ kép. Bước lọc dư thừa giữ hệ luôn nhỏ. Đây là minh chứng định lượng
+cho \emph{giá trị của việc khử dư thừa}
 \cite{vanderbei2014, schrijver1986}. Lưu ý: lọc dư thừa hiển nhiên không thay
-đổi bản chất lý thuyết --- vẫn tồn tại các họ bài toán mà số ràng buộc không
+đổi bản chất lý thuyết - vẫn tồn tại các họ bài toán mà số ràng buộc không
 thể giảm dưới mức mũ. Vì vậy Fourier--Motzkin phù hợp cho $n$ nhỏ và mang giá
 trị \emph{minh họa, giải trình} hơn là giải LP quy mô lớn; Simplex hay điểm
 trong hiệu quả hơn nhiều \cite{bertsimas1997, vanderbei2014}. Bảng
@@ -778,6 +779,36 @@ Quy mô thực dụng & $n$ nhỏ & rất lớn & rất lớn \\
 \end{tabular}
 \end{table}
 
+\subsection{So sánh với việc hỏi trực tiếp một mô hình ngôn ngữ (LLM)}
+\label{sec:vs-llm}
+
+Một câu hỏi tự nhiên: tại sao không hỏi thẳng một công cụ như ChatGPT/GPT để
+giải LP? Khác biệt cốt lõi nằm ở \emph{bản chất tính toán}, không chỉ ở tốc độ.
+
+\begin{itemize}
+    \item \textbf{Tất định và chính xác tuyệt đối.} Hệ thống chạy thuật toán
+          Fourier--Motzkin trên trường $\Q$: mọi phép tính là phân số tối giản
+          nên kết quả \emph{đúng tuyệt đối} và \emph{lặp lại được} --- cùng một
+          input luôn cho cùng một output kèm nguyên vẹn chuỗi suy diễn. Ngược
+          lại, LLM sinh văn bản theo xác suất nên có thể \emph{ảo giác}
+          (hallucinate) ra bước biến đổi sai hoặc đáp số sai, và hai lần hỏi cùng
+          một bài có thể trả về hai lời giải khác nhau.
+    \item \textbf{Có thể kiểm chứng.} Mỗi nghiệm đều được thế ngược rồi kiểm lại
+          trên toàn bộ ràng buộc gốc (Mục \ref{sec:growth} và tiêu chí ở Mục
+          đánh giá), còn trường hợp vô nghiệm luôn kèm chứng chỉ Farkas. Lời giải
+          do LLM sinh ra không đi kèm bất kỳ bảo chứng hình thức nào.
+    \item \textbf{Phản hồi tức thì.} Với quy mô $n$ nhỏ mà bài tập nhắm tới, lời
+          giải hiện ra \emph{ngay} khi bấm \textbf{Giải}: toàn bộ tính toán chạy
+          cục bộ, không gọi mạng và không phải chờ mô hình sinh dần từng token
+          như giao diện trò chuyện của LLM. Đây là lợi thế về trải nghiệm, tuy là
+          thứ yếu so với hai điểm trên.
+\end{itemize}
+
+Để công bằng cũng cần nêu rõ giới hạn: lợi thế ``tức thì'' chỉ đúng với $n$ nhỏ
+--- Fourier--Motzkin có thể bùng nổ mũ kép (Mục \ref{sec:growth}), nên với LP
+quy mô lớn thì Simplex hay điểm trong vẫn vượt trội. Giá trị cốt lõi của hệ
+thống là \emph{tính đúng đắn có giải trình}, chứ không phải tốc độ ở quy mô lớn.
+
 % ════════════════════════════════════════════════════════════════════════════
 \section{Hướng dẫn sử dụng giao diện}
 % ════════════════════════════════════════════════════════════════════════════
@@ -797,7 +828,7 @@ python app.py
 \begin{enumerate}
     \item Chọn \textbf{số biến} $n$ và \textbf{kiểu mục tiêu} (MAX/MIN).
     \item Nhập \textbf{hệ số hàm mục tiêu} $c_1, \ldots, c_n$; ô xem trước hiển
-          thị $z = \ldots$ theo thời gian thực.
+          thị $z = \ldots$.
     \item Nhập \textbf{ràng buộc} theo một trong hai chế độ:
     \begin{itemize}
         \item \textbf{Form}: mỗi dòng gồm các ô hệ số, dấu ($\le, \ge, =$) và vế
@@ -816,16 +847,13 @@ python app.py
 \subsection{Các output trả về cho người dùng}
 
 \begin{itemize}
-    \item \textbf{Thẻ kết quả}: nghiệm $x_i^\ast$ (dạng phân số kèm thập phân),
+    \item \textbf{ kết quả}: nghiệm $x_i^\ast$ (dạng phân số kèm thập phân),
           giá trị $z^\ast$, hoặc thông báo vô nghiệm / không bị chặn.
     \item \textbf{Tab ``Các bước khử''}: hệ ràng buộc ban đầu (sau khi gắn $z$)
           và sau mỗi bước khử biến.
     \item \textbf{Tab ``Biểu đồ''} (chỉ $n = 2$): miền khả thi, đường biên, các
           đỉnh, đường mức tối ưu, và bảng giá trị $z$ tại từng đỉnh.
-    \item \textbf{Tab ``Diễn giải''}: từng bước suy luận chi tiết bằng ngôn ngữ
-          tự nhiên (phân loại INFO / RESULT / WARN), gồm cả chứng chỉ Farkas khi
-          vô nghiệm. Các bước khử được giải thích 4 bước nhỏ: cô lập biến, điều
-          kiện tồn tại, ghép cặp cụ thể, giữ lại hệ rút gọn.
+    \item \textbf{Tab ``Diễn giải''}: từng bước suy luận chi tiết, gồm cả chứng chỉ Farkas khi vô nghiệm. Các bước khử được giải thích 4 bước nhỏ: cô lập biến, điều kiện tồn tại, ghép cặp cụ thể, giữ lại hệ rút gọn.
     \item \textbf{Tab ``Xuất file''}: xem trước và tải file \texttt{.txt} chứa
           toàn bộ giải trình (qua \texttt{POST /api/export}).
     \item \textbf{Khối ``Kiểm tra phụ thuộc vòng lặp''}: nhập số vòng lặp lồng
@@ -873,52 +901,50 @@ Phản hồi gồm: \texttt{has\_dependence}, \texttt{gcd\_eliminated},
 
 Hai bài toán được đưa cho ChatGPT với prompt yêu cầu giải bằng Fourier-Motzkin,
 lọc dư thừa và xuất chứng chỉ Farkas nếu vô nghiệm. Kết quả được đối chiếu với
-hệ thống. (Ảnh chụp minh chứng được đính kèm khi nộp.)
+hệ thống. 
+\newline Link chat với ChatGPT: https://chatgpt.com/share/6a1e0e7f-9670-83ec-bf5d-c65bfb578e20.
+\newline 
 
-\textbf{Bài 1 — TC5 (hệ số phân số):}
+\textbf{Bài 1 - TC5 (hệ số phân số):}
 $\max z = x_1+x_2$, ràng buộc $\tfrac{1}{3}x_1+\tfrac{2}{3}x_2 \le 1$,
-$x_1,x_2 \ge 0$. Cả hai đều cho $z^\ast = 3$. Tuy nhiên ChatGPT
-\emph{nhân 3 vào ràng buộc đầu tiên} để "khử mẫu" trước khi khử biến. Đây là
-bước sai về mặt thuật toán FM: FM không được phép nhân vô hướng vào ràng buộc
-vì nó thay đổi chứng chỉ Farkas của ràng buộc đó. Hệ thống giữ nguyên hệ số
-$\tfrac{1}{3}$, $\tfrac{2}{3}$ và tính chính xác trên trường $\Q$.
+$x_1,x_2 \ge 0$. Cả hai đều cho $z^\ast = 3$.
 
-\textbf{Bài 2 — Vô nghiệm với chứng chỉ Farkas phức tạp:}
+\textbf{Bài 2 - Vô nghiệm với chứng chỉ Farkas phức tạp:}
 $\max z = x_1+x_2$, ràng buộc $2x_1+x_2 \le 4$, $x_1+2x_2 \le 4$,
 $x_1+x_2 \ge 5$, $x_1,x_2 \ge 0$. Chứng chỉ Farkas đòi hỏi tổ hợp
 $1\cdot\text{rb}_1 + 1\cdot\text{rb}_2 + 3\cdot\text{rb}_3$ (hệ số không đều).
 ChatGPT tìm đúng $\vy = (1,1,3,0,0)$ và kiểm tra $\vy\T\mA = \mathbf{0}$,
 $\vy\T\vb = -7 < 0$ đúng chuẩn.
 
-\textbf{Nhận xét tổng hợp:}
+\textbf{Nhận xét tổng hợp:} với cả hai bài, ChatGPT cho kết quả đúng về mặt
+toán học, kể cả chứng chỉ Farkas với hệ số phức tạp. Sự khác biệt giữa hệ
+thống và ChatGPT không phải ở tính đúng đắn của thuật toán mà ở các yếu tố
+sau:
 
 \begin{itemize}
-    \item \textbf{Độ chính xác số học}: hệ thống làm việc trên trường $\Q$
-          (\texttt{Fraction}), không bao giờ làm tròn và không biến đổi ràng
-          buộc trước khi khử. ChatGPT có thể nhân vô hướng vào ràng buộc để
-          "gọn hơn", làm sai quy trình FM chuẩn.
-    \item \textbf{Tính lặp lại và xác định}: hệ thống cho kết quả nhất quán mỗi
-          lần chạy. ChatGPT có thể chọn thứ tự khử khác nhau giữa các lần hỏi.
-    \item \textbf{Kiểm tra nghiệm}: hệ thống luôn thế nghiệm vào toàn bộ ràng
-          buộc gốc để xác nhận. ChatGPT thường bỏ qua bước này.
-    \item \textbf{Trực quan}: hệ thống vẽ miền khả thi, đường mức trượt và đỉnh
-          tối ưu nhấp nháy cho bài toán 2 biến.
-    \item \textbf{Tích hợp}: hệ thống cung cấp API (\texttt{/api/solve},
-          \texttt{/api/depend\_general}) để tích hợp vào pipeline tự động.
-          ChatGPT là giao diện hội thoại, không có API lập trình được.
+    \item \textbf{Tính lặp lại và xác định}: hệ thống luôn cho cùng kết quả với
+          cùng đầu vào. ChatGPT có thể chọn thứ tự khử, cách trình bày khác
+          nhau giữa các lần hỏi.
+    \item \textbf{Kiểm tra nghiệm tự động}: hệ thống thế nghiệm vào toàn bộ
+          ràng buộc gốc để xác nhận sau mỗi lần giải. ChatGPT có thể bỏ qua
+          bước này.
+    \item \textbf{Trực quan hóa}: hệ thống vẽ miền khả thi, đường mức trượt
+          và đỉnh tối ưu nhấp nháy cho bài toán 2 biến.
+    \item \textbf{Số học chính xác}: hệ thống làm việc trên trường $\Q$
+          (\texttt{Fraction}), không bao giờ làm tròn. 
 \end{itemize}
 
-Ngược lại, ChatGPT linh hoạt hơn với bài toán phát biểu bằng ngôn ngữ tự nhiên,
-giải thích khái niệm rộng hơn, và với bài đơn giản thì chứng chỉ Farkas cũng
-tìm được đúng.
+Ngược lại, ChatGPT linh hoạt hơn với bài toán phát biểu bằng ngôn ngữ tự nhiên
+và giải thích khái niệm rộng hơn.
 
 \subsection{Chức năng mở rộng đã làm}
 
 \begin{itemize}
+    \item Ứng dụng đã được triển khai trực tuyến bằng Render.com tại đường dẫn (có thể sẽ cần chờ một vài phút khi khởi động web): https://fourier-motzkin.onrender.com/
     \item Hai phương pháp giải song song (đại số + hình học) để đối chiếu.
     \item Số học hữu tỉ chính xác trên trường $\Q$; parser hệ số ký hiệu hữu tỉ.
     \item Chứng chỉ Farkas cho trường hợp vô nghiệm.
-    \item Lọc dư thừa hãm bùng nổ tổ hợp, có thực nghiệm định lượng.
+    \item Lọc dư thừa giảm bùng nổ tổ hợp, có thực nghiệm định lượng.
     \item Ứng dụng kiểm tra phụ thuộc vòng lặp tổng quát ($d$ vòng lồng, mảng
           $m$ chiều) với GCD test + FM, kèm giải thích ý nghĩa cụ thể.
     \item Biểu đồ hình học đầy đủ: tô miền nghiệm, mũi tên hướng miền, đường
@@ -932,14 +958,19 @@ tìm được đúng.
     \item Loại dư thừa triệt để hơn (giải LP phụ) trước mỗi bước khử.
     \item Cho phương pháp hình học phát hiện trường hợp không bị chặn.
     \item Mở rộng kiểm tra phụ thuộc sang nghiệm nguyên chính xác bằng Omega
-          test (Pugh, 1991) — khắc phục trường hợp nới lỏng thực báo thừa.
+          test (Pugh, 1991) - khắc phục trường hợp nới lỏng thực báo thừa.
     \item Bổ sung Simplex để so sánh trực tiếp; trực quan hóa 3D cho $n = 3$.
 \end{itemize}
 
 % ════════════════════════════════════════════════════════════════════════════
-\section*{Tài liệu tham khảo}
+\newpage
+\renewcommand{\refname}{Tài liệu tham khảo}
+\renewcommand{\bibname}{Tài liệu tham khảo}
+\gappto\captionsvietnamese{%
+  \renewcommand{\refname}{Tài liệu tham khảo}%
+  \renewcommand{\bibname}{Tài liệu tham khảo}%
+}
 \addcontentsline{toc}{section}{Tài liệu tham khảo}
-% ════════════════════════════════════════════════════════════════════════════
 
 \begin{thebibliography}{9}
 
