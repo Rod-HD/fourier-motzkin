@@ -77,21 +77,23 @@ def _pick_value(lo: Optional[Number], hi: Optional[Number]) -> Number:
     return Fraction(0)
 
 
-def _expr_without(row: Row, k: int, n: int, scale: Number) -> str:
-    """Diễn đạt phần ``(b - các hạng tử khác)/|a_k|`` của một ràng buộc.
+def _expr_without(row: Row, k: int, n: int, denom: Number) -> str:
+    """Diễn đạt vế phải khi cô lập ``x_k`` từ một ràng buộc.
 
-    Dùng để in dạng ``x_k <= <biểu thức>`` hoặc ``x_k >= <biểu thức>`` khi cô
-    lập biến ``x_k``. ``scale`` là ``|a_k|`` để chia. Các hạng tử của biến khác
-    được CHUYỂN VẾ nên đổi dấu.
+    Dùng để in dạng ``x_k <= <biểu thức>`` (khi ``a_k > 0``) hoặc
+    ``x_k >= <biểu thức>`` (khi ``a_k < 0``). ``denom`` là hệ số ``a_k`` CÓ DẤU:
+    cô lập ``x_k`` nghĩa là chia hai vế cho ``a_k``, nên phải dùng dấu thật của
+    ``a_k`` thì biểu thức mới đúng (chia cho ``|a_k|`` sẽ sai dấu khi ``a_k < 0``,
+    ví dụ ``z - x1 <= 0`` cho ``x1 >= z`` chứ không phải ``x1 >= -z``).
     """
     parts: List[str] = []
-    const = row.rhs / scale
+    const = row.rhs / denom
     if const != 0 or all(row.coeff(j) == 0 for j in range(row.width()) if j != k):
         parts.append(format_fraction(const))
     for j in range(row.width()):
         if j == k or row.coeff(j) == 0:
             continue
-        coef = -row.coeff(j) / scale  # chuyển vế -> đổi dấu
+        coef = -row.coeff(j) / denom  # chuyển vế (đổi dấu) rồi chia cho a_k
         name = var_name(j, n)
         if coef == 1:
             term = f"+ {name}"
@@ -125,7 +127,7 @@ def _as_bound(row: Row, k: int, n: int):
     a = row.coeff(k)
     if a == 0:
         return "none", format_row(row, n)
-    expr = _expr_without(row, k, n, abs(a))
+    expr = _expr_without(row, k, n, a)
     return ("upper" if a > 0 else "lower"), expr
 
 
@@ -172,8 +174,8 @@ def solve(lp: LinearProgram, trace: Optional[Trace] = None) -> Solution:
         lower, upper, none = split_by_sign(current, k)
 
         # (1) Cô lập x_k trong từng ràng buộc có chứa nó.
-        upper_exprs = [_expr_without(r, k, n, abs(r.coeff(k))) for r in upper]
-        lower_exprs = [_expr_without(r, k, n, abs(r.coeff(k))) for r in lower]
+        upper_exprs = [_expr_without(r, k, n, r.coeff(k)) for r in upper]
+        lower_exprs = [_expr_without(r, k, n, r.coeff(k)) for r in lower]
         lines = [f"Cô lập {vk} trong mỗi ràng buộc có chứa nó:"]
         for r, e in zip(upper, upper_exprs):
             lines.append(f"   từ  {format_row(r, n)}   ⟹   {vk} ≤ {e}")
@@ -223,22 +225,31 @@ def solve(lp: LinearProgram, trace: Optional[Trace] = None) -> Solution:
         still_z = any(r.coeff(z_idx) != 0 for r in kept)
         if had_z and not still_z:
             z_row = next(r for r in current if r.coeff(z_idx) != 0)
+            bound_lines: List[str] = []
             if z_row.coeff(k) < 0:
-                # dòng z cho chặn DƯỚI của x_k, cần một chặn TRÊN để ghép cặp
-                why_dir = f"{vk} không có chặn trên (không ràng buộc nào có hệ số {vk} dương)"
-                grow = "+∞"
+                # x_k chỉ có chặn DƯỚI (kể cả từ dòng z); thiếu chặn TRÊN để ghép cặp.
+                kind, missing, grow = "chặn dưới", "chặn trên", "+∞"
+                for r, e in zip(lower, lower_exprs):
+                    tag = " ← dòng mục tiêu (chứa z)" if r.coeff(z_idx) != 0 else ""
+                    bound_lines.append(f"   {vk} ≥ {e}   (từ {format_row(r, n)}){tag}")
             else:
-                # dòng z cho chặn TRÊN của x_k, cần một chặn DƯỚI để ghép cặp
-                why_dir = f"{vk} không có chặn dưới (không ràng buộc nào có hệ số {vk} âm)"
-                grow = "-∞"
-            tr.warn(
-                f"Dòng mục tiêu (chứa z) bị loại khi khử {vk}",
-                f"Dòng gắn z vào hệ vẫn còn chứa {vk}, nhưng {why_dir}. Phép ghép cặp "
-                f"Fourier-Motzkin cần mỗi chặn dưới đi với một chặn trên; thiếu một phía nên "
-                f"KHÔNG có cặp nào và dòng này bị loại hoàn toàn. Nói cách khác {vk} có thể "
-                f"tiến tới {grow}, kéo theo z không còn bị chặn. Đây chính là dấu hiệu bài toán "
-                f"KHÔNG BỊ CHẶN (sẽ được xác nhận ở bước phân tích hệ chỉ còn z).",
-            )
+                # x_k chỉ có chặn TRÊN; thiếu chặn DƯỚI để ghép cặp.
+                kind, missing, grow = "chặn trên", "chặn dưới", "-∞"
+                for r, e in zip(upper, upper_exprs):
+                    tag = " ← dòng mục tiêu (chứa z)" if r.coeff(z_idx) != 0 else ""
+                    bound_lines.append(f"   {vk} ≤ {e}   (từ {format_row(r, n)}){tag}")
+            body = [f"Xét {vk} trong hệ hiện tại: {vk} CHỈ có {kind}, KHÔNG có {missing}:"]
+            body.extend(bound_lines)
+            body.append(
+                f"Phép khử Fourier-Motzkin chỉ sinh ràng buộc mới bằng cách ghép MỖI chặn dưới "
+                f"với MỖI chặn trên. Vì {vk} thiếu hẳn {missing} nên không ghép được cặp nào → "
+                f"toàn bộ dòng chứa {vk} bị loại, trong đó có dòng mục tiêu gắn z.")
+            body.append(
+                f"Hệ quả: {vk} có thể tiến tới {grow} mà không vi phạm ràng buộc nào. Dòng mục "
+                f"tiêu ràng buộc z theo {vk} (z ≤ hàm mục tiêu); khi {vk} không bị chặn thì z "
+                f"cũng không còn bị chặn. Đây chính là dấu hiệu bài toán KHÔNG BỊ CHẶN "
+                f"(sẽ được xác nhận ở bước phân tích hệ chỉ còn z).")
+            tr.warn(f"Vì sao khử {vk} làm mất luôn z?", "\n".join(body))
 
         current = kept
         steps.append({
