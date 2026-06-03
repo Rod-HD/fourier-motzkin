@@ -14,10 +14,6 @@ const vlab = (i) => "x" + sub(i + 1);
 const esc = (s) => (s == null ? "" : String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
 
-// Chữ số chỉ số dưới chân (subscript) để hiển thị biến iw₁, ir₂, i₃...
-const SUB_DIGITS = "₀₁₂₃₄₅₆₇₈₉";
-const sub = (n) => String(n).split("").map((c) => SUB_DIGITS[+c] ?? c).join("");
-
 
 /* ---- thiết lập cơ bản ---- */
 function setSense(s) {
