@@ -326,11 +326,50 @@ def _analyze_z_system(rows: List[Row], z_idx: int, lp: LinearProgram,
     return Solution(Solution.FEASIBLE, z=z_max)
 
 
+_SUB_DIGITS = "₀₁₂₃₄₅₆₇₈₉"
+
+
+def _name_prefix(label: str) -> str:
+    """Phần chữ của tên biến, bỏ chỉ số đuôi (cả số thường lẫn chỉ số dưới chân).
+
+    Ví dụ: ``x12`` → ``x``; ``iw₃`` → ``iw``. Dùng để gom biến cùng nhóm.
+    """
+    i = len(label)
+    while i > 0 and (label[i - 1].isdigit() or label[i - 1] in _SUB_DIGITS):
+        i -= 1
+    return label[:i]
+
+
+def _var_list_label(n: int, names: Optional[List[str]] = None) -> str:
+    """Liệt kê n biến gọn gàng, gom theo nhóm tiền tố, không dùng '…' khi nhóm ≤ 2.
+
+    LP thường: ``x1`` → ``x1, x2`` → ``x1, …, x4``.
+    Phụ thuộc:  ``iw₁, ir₁`` (d=1); ``iw₁, iw₂, ir₁, ir₂`` (d=2);
+                ``iw₁, …, iw₃, ir₁, …, ir₃`` (d=3).
+    """
+    labels = [var_name(i, n, names) for i in range(n)]
+    if not labels:
+        return ""
+    groups: List[List[str]] = [[labels[0]]]
+    for lab in labels[1:]:
+        if _name_prefix(lab) == _name_prefix(groups[-1][0]):
+            groups[-1].append(lab)
+        else:
+            groups.append([lab])
+    parts: List[str] = []
+    for g in groups:
+        if len(g) <= 2:
+            parts.extend(g)               # nhóm 1–2 biến: liệt kê hết
+        else:
+            parts.append(f"{g[0]}, …, {g[-1]}")
+    return ", ".join(parts)
+
+
 def _back_substitute(snapshots: List[List[Row]], z_max: Number, n: int,
                      trace: Trace, names: Optional[List[str]] = None) -> List[Number]:
     """Thế ngược tìm x_n..x_1 từ các ảnh chụp hệ trước mỗi bước khử."""
     trace.add(
-        "Thế ngược để tìm nghiệm x",
+        f"Thế ngược để tìm nghiệm ({_var_list_label(n, names)})",
         f"Đã biết z = {format_fraction(z_max)}. Đi ngược từ "
         f"{var_name(n - 1, n, names)} về {var_name(0, n, names)}: tại mỗi biến, thế các giá trị đã biết vào "
         "hệ ngay trước khi khử biến đó để được khoảng giá trị, rồi chọn một giá trị trong khoảng.",
