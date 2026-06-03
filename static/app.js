@@ -14,6 +14,10 @@ const vlab = (i) => "x" + sub(i + 1);
 const esc = (s) => (s == null ? "" : String(s)
   .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
 
+// Chữ số chỉ số dưới chân (subscript) để hiển thị biến iw₁, ir₂, i₃...
+const SUB_DIGITS = "₀₁₂₃₄₅₆₇₈₉";
+const sub = (n) => String(n).split("").map((c) => SUB_DIGITS[+c] ?? c).join("");
+
 
 /* ---- thiết lập cơ bản ---- */
 function setSense(s) {
@@ -680,7 +684,7 @@ function depBuild(d, m) {
 
   const host = document.getElementById("depForm");
   // Dùng i1, i2, ... (ASCII) thay vì i₁, i₂ để tránh lỗi font trong monospace
-  const iLabels = Array.from({length: depD}, (_, j) => `i${j+1}`);
+  const iLabels = Array.from({length: depD}, (_, j) => `i${sub(j+1)}`);
 
   // ── Phần 1: Cận vòng lặp ──────────────────────────────────────
   let html = `<div class="dep-section">
@@ -757,8 +761,7 @@ function depAccessTable(rw, iLabels) {
 
 function depUpdatePreview() {
   const d = depD, m = depM;
-  // Dùng i1, i2, ... (ASCII) để tránh lỗi font monospace với Unicode subscript
-  const iLabels = Array.from({length: d}, (_, j) => `i${j+1}`);
+  const iLabels = Array.from({length: d}, (_, j) => `i${sub(j+1)}`);
 
   // Thu thập giá trị
   const loops = [];
@@ -840,8 +843,8 @@ function depUpdatePreview() {
   html += line(`<span class="cmt"># Phụ thuộc tồn tại khi tìm được iw, ir thỏa:</span>`);
   blank();
 
-  const iwLabels = Array.from({length: d}, (_, j) => `iw${j+1}`);
-  const irLabels = Array.from({length: d}, (_, j) => `ir${j+1}`);
+  const iwLabels = Array.from({length: d}, (_, j) => `iw${sub(j+1)}`);
+  const irLabels = Array.from({length: d}, (_, j) => `ir${sub(j+1)}`);
 
   // Phương trình bằng nhau - mỗi chiều 1 dòng
   for (let k = 0; k < m; k++) {
@@ -857,8 +860,8 @@ function depUpdatePreview() {
   for (let j = 0; j < d; j++) {
     const {L, U} = loops[j];
     const note = d > 1 ? `&nbsp;&nbsp;<span class="cmt"># vòng ${j+1}</span>` : "";
-    html += line(`<span class="eq">${L}&nbsp;&lt;=&nbsp;iw${j+1}&nbsp;&lt;=&nbsp;${U}</span>${note}`, 1);
-    html += line(`<span class="eq">${L}&nbsp;&lt;=&nbsp;ir${j+1}&nbsp;&lt;=&nbsp;${U}</span>`, 1);
+    html += line(`<span class="eq">${L}&nbsp;≤&nbsp;iw${sub(j+1)}&nbsp;≤&nbsp;${U}</span>${note}`, 1);
+    html += line(`<span class="eq">${L}&nbsp;≤&nbsp;ir${sub(j+1)}&nbsp;≤&nbsp;${U}</span>`, 1);
     if (j < d - 1) html += blank();
   }
 
@@ -976,7 +979,7 @@ function renderDepResult(d, numVars) {
       U: parseInt(document.getElementById(`dep_U${j}`)?.value, 10) || 0,
     });
   }
-  const iLabels = Array.from({length: depD}, (_, j) => `i${j+1}`);
+  const iLabels = Array.from({length: depD}, (_, j) => `i${sub(j+1)}`);
   const makeIdx = (coeffs, cnst, labels) => {
     const parts = [];
     coeffs.forEach((a, j) => {

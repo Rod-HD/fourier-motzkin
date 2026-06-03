@@ -188,14 +188,21 @@ def test_loop_dependence_general(
         # ir_j <= U
         c = [0] * n_vars; c[d + j] = 1
         constraints.append({"coeffs": c, "sense": "<=", "rhs": U})
-        bound_lines.append(f"  Vòng {j+1}: {L} ≤ iw_{j+1} ≤ {U},  {L} ≤ ir_{j+1} ≤ {U}")
+        bound_lines.append(f"  Vòng {j+1}: {L} ≤ {_iw(j+1)} ≤ {U},  {L} ≤ {_ir(j+1)} ≤ {U}")
+
+    # Liệt kê đầy đủ hệ ràng buộc đúng như sẽ đưa vào Fourier-Motzkin.
+    full_lines: List[str] = []
+    for i, c in enumerate(constraints, start=1):
+        full_lines.append(
+            f"  (R{i}) {_format_constraint(c['coeffs'], c['sense'], c['rhs'], d)}"
+        )
 
     tr.add(
         "Bước 2 - Xây dựng hệ ràng buộc cho Fourier-Motzkin",
+        f"Biến của hệ ({n_vars} biến): {_var_list('iw', d)}, {_var_list('ir', d)}.\n"
         f"Phương trình phụ thuộc ({m} chiều mảng):\n" + "\n".join(dep_lines) +
         f"\nRàng buộc biên ({d} vòng lặp):\n" + "\n".join(bound_lines) +
-        f"\nTổng cộng {n_vars} biến (iw_1..iw_{d}, ir_1..ir_{d}), "
-        f"{len(constraints)} ràng buộc.",
+        f"\n\nHệ ban đầu đầy đủ ({len(constraints)} ràng buộc):\n" + "\n".join(full_lines),
     )
 
     # ── Bước 2: Chạy FM ───────────────────────────────────────────────────
@@ -205,7 +212,8 @@ def test_loop_dependence_general(
         "nếu khả thi → có thể phụ thuộc (nới lỏng số thực).",
     )
     obj = [0] * n_vars
-    lp = LinearProgram.from_input(n_vars, "max", obj, constraints)
+    var_names = [_iw(j + 1) for j in range(d)] + [_ir(j + 1) for j in range(d)]
+    lp = LinearProgram.from_input(n_vars, "max", obj, constraints, names=var_names)
     sol: Solution = solve(lp, tr)
 
     has_dep = sol.status == Solution.FEASIBLE
@@ -259,13 +267,71 @@ def test_loop_dependence(
 # Tiện ích
 # ─────────────────────────────────────────────────────────────────────────────
 
+_SUB_DIGITS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+
+def _sub(i: int) -> str:
+    """Chuyển một số nguyên thành chuỗi chữ số chỉ số dưới (vd: 12 → ₁₂)."""
+    return str(i).translate(_SUB_DIGITS)
+
+
+def _iw(j: int) -> str:
+    """Tên biến vòng ghi thứ *j* (1-based) với chỉ số dưới: iw₁, iw₂, ..."""
+    return f"iw{_sub(j)}"
+
+
+def _ir(j: int) -> str:
+    """Tên biến vòng đọc thứ *j* (1-based) với chỉ số dưới: ir₁, ir₂, ..."""
+    return f"ir{_sub(j)}"
+
+
+def _var_of(idx: int, d: int) -> str:
+    """Tên biến theo chỉ số cột FM: 0..d-1 → iw_j, d..2d-1 → ir_j."""
+    return _iw(idx + 1) if idx < d else _ir(idx - d + 1)
+
+
+def _var_list(prefix: str, d: int) -> str:
+    """Liệt kê dãy biến gọn gàng, không dùng '..' khi d ≤ 2.
+
+    d = 1 → 'iw₁';  d = 2 → 'iw₁, iw₂';  d ≥ 3 → 'iw₁, …, iw₃'.
+    """
+    if d == 1:
+        return f"{prefix}{_sub(1)}"
+    if d == 2:
+        return f"{prefix}{_sub(1)}, {prefix}{_sub(2)}"
+    return f"{prefix}{_sub(1)}, …, {prefix}{_sub(d)}"
+
+
+def _format_constraint(coeffs: List[int], sense: str, rhs: int, d: int) -> str:
+    """In một ràng buộc thô (trên biến iw/ir) thành chuỗi dễ đọc."""
+    parts: List[str] = []
+    for idx, a in enumerate(coeffs):
+        if a == 0:
+            continue
+        name = _var_of(idx, d)
+        if not parts:
+            term = name if a == 1 else f"-{name}" if a == -1 else f"{a}·{name}"
+        elif a == 1:
+            term = f"+ {name}"
+        elif a == -1:
+            term = f"- {name}"
+        elif a > 0:
+            term = f"+ {a}·{name}"
+        else:
+            term = f"- {-a}·{name}"
+        parts.append(term)
+    lhs = " ".join(parts) if parts else "0"
+    sym = {"<=": "≤", ">=": "≥", "=": "="}.get(sense, sense)
+    return f"{lhs} {sym} {rhs}"
+
+
 def _format_dep_eq(w: List[int], r: List[int], d: int) -> str:
-    """Định dạng phương trình phụ thuộc dạng 'a1·iw1 + ... - b1·ir1 - ...'."""
+    """Định dạng phương trình phụ thuộc dạng 'a1·iw₁ + ... - b1·ir₁ - ...'."""
     parts: List[str] = []
     for j in range(d):
         if w[j] != 0:
-            parts.append(f"{w[j]}·iw_{j+1}" if w[j] != 1 else f"iw_{j+1}")
+            parts.append(f"{w[j]}·{_iw(j+1)}" if w[j] != 1 else _iw(j+1))
     for j in range(d):
         if r[j] != 0:
-            parts.append(f"-{r[j]}·ir_{j+1}" if r[j] != 1 else f"-ir_{j+1}")
+            parts.append(f"-{r[j]}·{_ir(j+1)}" if r[j] != 1 else f"-{_ir(j+1)}")
     return " + ".join(parts).replace("+ -", "- ") if parts else "0"

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from .rational import Number, format_fraction, to_fraction
 
@@ -98,6 +98,7 @@ class LinearProgram:
     sense: str
     obj: List[Number]
     rows: List[Row]
+    names: Optional[List[str]] = None
 
     @staticmethod
     def from_input(
@@ -105,6 +106,7 @@ class LinearProgram:
         sense: str,
         obj: Sequence,
         constraints: Sequence[Dict],
+        names: Optional[Sequence[str]] = None,
     ) -> "LinearProgram":
         """Dựng LP từ dữ liệu thô, chuẩn hóa mọi ràng buộc về dạng ``<=``.
 
@@ -143,21 +145,32 @@ class LinearProgram:
                 cert_id += 1
             else:
                 raise ValueError(f"Toán tử không hợp lệ: {s!r}")
-        return LinearProgram(n=n, sense=sense, obj=obj_q, rows=rows)
+        return LinearProgram(
+            n=n, sense=sense, obj=obj_q, rows=rows,
+            names=list(names) if names is not None else None,
+        )
 
 
-def var_name(i: int, n: int) -> str:
-    """Tên biến: ``x1..xn`` cho biến quyết định, ``z`` cho biến mục tiêu (idx n)."""
-    return "z" if i == n else f"x{i + 1}"
+def var_name(i: int, n: int, names: Optional[Sequence[str]] = None) -> str:
+    """Tên biến: ``x1..xn`` cho biến quyết định, ``z`` cho biến mục tiêu (idx n).
+
+    Nếu *names* được cung cấp, dùng tên tùy biến cho các biến quyết định
+    (vd ``iw₁, ir₁`` trong bài toán phụ thuộc vòng lặp); biến mục tiêu vẫn là ``z``.
+    """
+    if i == n:
+        return "z"
+    if names is not None and 0 <= i < len(names):
+        return names[i]
+    return f"x{i + 1}"
 
 
-def format_row(row: Row, n: int) -> str:
-    """In một ràng buộc thành chuỗi ``a1x1 + a2x2 + ... <= b`` dễ đọc."""
+def format_row(row: Row, n: int, names: Optional[Sequence[str]] = None) -> str:
+    """In một ràng buộc thành chuỗi ``a1x1 + a2x2 + ... ≤ b`` dễ đọc."""
     terms: List[str] = []
     for i, a in enumerate(row.coeffs):
         if a == 0:
             continue
-        name = var_name(i, n)
+        name = var_name(i, n, names)
         if a == 1:
             terms.append(f"+ {name}")
         elif a == -1:
@@ -174,4 +187,4 @@ def format_row(row: Row, n: int) -> str:
             lhs = lhs[2:]
         elif lhs.startswith("- "):
             lhs = "-" + lhs[2:]
-    return f"{lhs} <= {format_fraction(row.rhs)}"
+    return f"{lhs} ≤ {format_fraction(row.rhs)}"
