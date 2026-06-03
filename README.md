@@ -1,46 +1,21 @@
-# Fourier–Motzkin LP Solver (phiên bản 2)
+# Fourier–Motzkin LP Solver
 
 Ứng dụng web giải bài toán **quy hoạch tuyến tính** bằng phép **khử Fourier–Motzkin**,
 cài đặt hoàn toàn trên **trường số hữu tỉ** (`fractions.Fraction`) để chính xác tuyệt đối.
 
 Bài tập lớn môn **CS112 — Phân tích và Thiết kế Thuật toán**.
 
-Phiên bản này được xây dựng độc lập, bám sát bốn tài liệu tham khảo:
-
-- **Bertsimas & Tsitsiklis**, *Introduction to Linear Optimization* — trực giác hình học,
-  phép chiếu đa diện, định lý điểm cực biên.
-- **Vanderbei**, *Linear Programming: Foundations and Extensions* — dạng ma trận,
-  góc nhìn thuật toán, đà bùng nổ số ràng buộc.
-- **Allen & Kennedy**, *Optimizing Compilers for Modern Architectures* — dùng
-  Fourier–Motzkin làm kiểm thử khả thi cho phân tích phụ thuộc vòng lặp.
-- **Schrijver**, *Theory of Linear and Integer Programming* — Bổ đề Farkas,
-  độ phức tạp, cấu trúc nón đa diện.
-
----
-
-## Điểm khác biệt của phiên bản 2
-
-| Khía cạnh | Cài đặt |
-| --- | --- |
-| Số học | Trường hữu tỉ `Q` qua `Fraction` (chính xác tuyệt đối, không float) |
-| Biểu diễn | Dạng ma trận `Ax ≤ b`, mỗi hàng là một `Row` |
-| Vô nghiệm | Xuất **chứng chỉ Farkas** (tổ hợp không âm các ràng buộc gốc) |
-| Bùng nổ tổ hợp | **Lọc dư thừa** (bỏ ràng buộc bị trội) sau mỗi bước khử |
-| Ứng dụng CS | **Kiểm tra phụ thuộc vòng lặp** (compiler) bằng kiểm thử khả thi |
-| Phương pháp | Đại số (mọi `n`) + Hình học (`n = 2`) |
-
 ---
 
 ## Cấu trúc thư mục
 
 ```
-v2/
+fourier_motzkin/
 ├── app.py                 # Flask: /, /api/solve, /api/depend, /api/export
 ├── requirements.txt
 ├── Procfile               # gunicorn app:app
 ├── render.yaml
-├── report.tex / report.pdf
-├── UIT.png
+├── TESTCASES.md
 ├── fmlp/                  # gói lõi
 │   ├── rational.py        # số học hữu tỉ (Fraction)
 │   ├── model.py           # Row, LinearProgram, combine (ghép cặp + Farkas)
@@ -59,13 +34,12 @@ v2/
     ├── smoke.py           # smoke test tầng dịch vụ
     └── growth.py          # đo đà bùng nổ số ràng buộc
 ```
-
 ---
 
 ## Cài đặt và chạy ở local
 
 ```powershell
-# từ thư mục v2/
+# từ thư mục sources_code/
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
@@ -81,10 +55,10 @@ Mở trình duyệt tại <http://localhost:5001>.
 ## Chạy kiểm thử
 
 ```powershell
-# từ thư mục v2/
-python -m tests.run_tests      # 21/21 PASS
-python -m tests.smoke          # smoke test tầng dịch vụ
-python -m tests.growth         # bảng đà bùng nổ số ràng buộc
+# từ thư mục sources_code/
+python -m tests.run_tests      
+python -m tests.smoke          
+python -m tests.growth  
 ```
 
 ---
@@ -147,9 +121,3 @@ Xuất file `.txt` giải trình. Body: `{ "result": <phản hồi của /api/so
 
 Repo có sẵn `render.yaml`. Build: `pip install -r requirements.txt`,
 Start: `gunicorn app:app`.
-
----
-
-## Tác giả
-
-**Hoàng Quốc Duy** — Đồ án môn CS112, Phân tích và Thiết kế Thuật toán.

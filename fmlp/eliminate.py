@@ -6,7 +6,7 @@ biến cần khử và ghép cặp để chiếu hệ xuống không gian ít h�
 Trực giác hình học (Bertsimas--Tsitsiklis): khử một biến tương đương với phép
 *chiếu* đa diện ``P = {x : Ax <= b}`` xuống siêu phẳng còn lại n-1 chiều. Một
 điểm thuộc hình chiếu khi và chỉ khi tồn tại giá trị của biến bị khử nằm trong
-mọi cận dưới và cận trên do các ràng buộc áp đặt — chính là điều kiện
+mọi cận dưới và cận trên do các ràng buộc áp đặt - chính là điều kiện
 "mọi cận dưới <= mọi cận trên".
 
 Vì số ràng buộc có thể bùng nổ sau mỗi bước (điểm yếu cố hữu nêu trong
@@ -28,9 +28,9 @@ def split_by_sign(rows: List[Row], k: int) -> Tuple[List[Row], List[Row], List[R
 
     Returns:
         (lower, upper, none) với:
-          * ``upper`` — hệ số ``a_k > 0`` (ràng buộc cho *chặn trên* của x_k),
-          * ``lower`` — hệ số ``a_k < 0`` (ràng buộc cho *chặn dưới* của x_k),
-          * ``none``  — hệ số ``a_k = 0`` (không liên quan tới x_k).
+          * ``upper`` - hệ số ``a_k > 0`` (ràng buộc cho *chặn trên* của x_k),
+          * ``lower`` - hệ số ``a_k < 0`` (ràng buộc cho *chặn dưới* của x_k),
+          * ``none``  - hệ số ``a_k = 0`` (không liên quan tới x_k).
     """
     lower: List[Row] = []
     upper: List[Row] = []
@@ -66,7 +66,7 @@ def _lhs_key_and_scale(row: Row) -> Tuple[Tuple, Fraction]:
 
     Quy vector hệ số ``a`` về số nguyên tối giản *giữ nguyên dấu* (chia cho ước
     chung lớn nhất). Hai ràng buộc có cùng khóa khi và chỉ khi vế trái của
-    chúng là *bội dương* của nhau — lúc đó chúng cùng một "hướng" nửa không
+    chúng là *bội dương* của nhau - lúc đó chúng cùng một "hướng" nửa không
     gian và có thể so độ chặt qua vế phải đã quy chuẩn.
 
     Trả về (khóa_hướng, scale) với ``scale`` là số dương sao cho
@@ -99,7 +99,7 @@ def prune_redundant(rows: List[Row]) -> List[Row]:
 
       * Ràng buộc tầm thường ``0 <= b`` với ``b >= 0`` được bỏ (luôn đúng).
       * Với nhóm ràng buộc có vế trái là *bội dương* của nhau (cùng một hướng
-        nửa không gian), chỉ giữ ràng buộc *chặt nhất* — vế phải nhỏ nhất sau
+        nửa không gian), chỉ giữ ràng buộc *chặt nhất* - vế phải nhỏ nhất sau
         khi quy về cùng tỉ lệ; các ràng buộc còn lại bị nó trội và là dư thừa.
 
     Phép lọc này không loại được dư thừa "ẩn" (chỉ phát hiện được bằng cách

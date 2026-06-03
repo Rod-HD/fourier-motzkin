@@ -106,7 +106,7 @@ def solve_geometric(lp: LinearProgram, trace: Optional[Trace] = None) -> Dict[st
     table = "; ".join(f"{v['label']}: z = {format_fraction(v['z'])}" for v in vertices)
     tr.add(
         "So sánh z tại các đỉnh",
-        f"Giá trị z tại các đỉnh — {table}. "
+        f"Giá trị z tại các đỉnh - {table}. "
         f"Chọn giá trị {'lớn nhất' if lp.sense == 'max' else 'nhỏ nhất'}.",
     )
     tr.result(

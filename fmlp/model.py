@@ -9,7 +9,7 @@ và hàm mục tiêu tuyến tính ``z = c^T x``. Mọi ràng buộc ``>=`` đư
 ràng buộc ``=`` tách thành cặp ``<=`` và ``>=`` (Bertsimas--Tsitsiklis,
 Vanderbei).
 
-Mỗi bất đẳng thức được lưu trong lớp :class:`Row` cùng một *chứng chỉ* — tổ
+Mỗi bất đẳng thức được lưu trong lớp :class:`Row` cùng một *chứng chỉ* - tổ
 hợp tuyến tính không âm của các bất đẳng thức gốc đã sinh ra nó. Chứng chỉ này
 chính là bội số Farkas, cho phép truy vết nguồn gốc một mâu thuẫn ``0 <= -k``
 (Schrijver, Bổ đề Farkas).
@@ -31,7 +31,7 @@ class Row:
     Attributes:
         coeffs: vector hệ số ``[a_1, ..., a_d]`` (có thể gồm cả biến phụ z).
         rhs: vế phải ``b``.
-        cert: chứng chỉ Farkas — ánh xạ {chỉ số ràng buộc gốc -> bội số >= 0}.
+        cert: chứng chỉ Farkas - ánh xạ {chỉ số ràng buộc gốc -> bội số >= 0}.
               Tổng có trọng số của các ràng buộc gốc theo ``cert`` tái tạo lại
               chính ``Row`` này, dùng để giải thích vì sao hệ vô nghiệm.
     """

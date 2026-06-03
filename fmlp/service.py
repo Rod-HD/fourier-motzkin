@@ -154,7 +154,7 @@ def export_txt(result: Dict[str, Any]) -> str:
 
     lines += [
         bar,
-        "  FOURIER-MOTZKIN LP SOLVER (v2) — GIẢI TRÌNH",
+        "  FOURIER-MOTZKIN LP SOLVER (v2) - GIẢI TRÌNH",
         f"  Thời điểm: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"  Phương pháp: {result.get('method', '?')}",
         bar,

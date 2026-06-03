@@ -135,7 +135,7 @@ def test_loop_dependence_general(
         )
 
     tr.add(
-        "Bước 1 — GCD test (điều kiện cần, kiểm tra số nguyên)",
+        "Bước 1 - GCD test (điều kiện cần, kiểm tra số nguyên)",
         "\n".join(gcd_lines) if gcd_lines else "Không có chiều nào cần kiểm tra.",
     )
 
@@ -191,7 +191,7 @@ def test_loop_dependence_general(
         bound_lines.append(f"  Vòng {j+1}: {L} ≤ iw_{j+1} ≤ {U},  {L} ≤ ir_{j+1} ≤ {U}")
 
     tr.add(
-        "Bước 2 — Xây dựng hệ ràng buộc cho Fourier-Motzkin",
+        "Bước 2 - Xây dựng hệ ràng buộc cho Fourier-Motzkin",
         f"Phương trình phụ thuộc ({m} chiều mảng):\n" + "\n".join(dep_lines) +
         f"\nRàng buộc biên ({d} vòng lặp):\n" + "\n".join(bound_lines) +
         f"\nTổng cộng {n_vars} biến (iw_1..iw_{d}, ir_1..ir_{d}), "
@@ -200,7 +200,7 @@ def test_loop_dependence_general(
 
     # ── Bước 2: Chạy FM ───────────────────────────────────────────────────
     tr.add(
-        "Bước 3 — Khử Fourier-Motzkin kiểm tra khả thi",
+        "Bước 3 - Khử Fourier-Motzkin kiểm tra khả thi",
         f"Khử lần lượt {n_vars} biến. Nếu hệ vô nghiệm → không phụ thuộc; "
         "nếu khả thi → có thể phụ thuộc (nới lỏng số thực).",
     )
@@ -238,7 +238,7 @@ def test_loop_dependence_general(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Hàm đơn giản (1 vòng, 1 chiều) — giữ lại để tương thích ngược
+# Hàm đơn giản (1 vòng, 1 chiều) - giữ lại để tương thích ngược
 # ─────────────────────────────────────────────────────────────────────────────
 
 def test_loop_dependence(

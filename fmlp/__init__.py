@@ -1,4 +1,4 @@
-"""Gói giải LP bằng khử Fourier-Motzkin — phiên bản 2.
+"""Gói giải LP bằng khử Fourier-Motzkin - phiên bản 2.
 
 Hạt nhân làm việc trên trường số hữu tỉ Q (Fraction) để bảo đảm chính xác
 tuyệt đối, biểu diễn bài toán ở dạng ma trận ``Ax <= b``, và truy vết mọi bước

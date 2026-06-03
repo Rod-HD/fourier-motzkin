@@ -1,4 +1,4 @@
-/* Fourier-Motzkin LP Solver v2 — giao diện */
+/* Fourier-Motzkin LP Solver v2 - giao diện */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -273,6 +273,29 @@ footer { text-align: center; padding: 16px; font-size: .76rem; color: var(--slat
   .tab { padding: 9px 11px; font-size: .78rem; }
 }
 
+/* ── Ngăn cách phần ứng dụng với bộ giải LP ─────────────────────────────── */
+.app-divider {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  margin: 46px 0 20px; position: relative;
+}
+.app-divider::before {
+  content: ""; position: absolute; top: -23px; left: 0; right: 0; height: 1px;
+  background: repeating-linear-gradient(90deg, var(--line) 0 8px, transparent 8px 16px);
+}
+.app-divider-tag {
+  font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--amber); background: var(--amber-l); border: 1px solid #f0d9b0;
+  padding: 5px 16px; border-radius: 999px;
+}
+.app-divider-sub { font-size: .8rem; color: var(--slate); margin-top: 7px; }
+
+/* Khối ứng dụng dùng tông hổ phách để phân biệt với bộ giải (tông teal) */
+.app-panel { border-top: 3px solid var(--amber); border-color: #ead4ad var(--line) var(--line); }
+.app-panel > .panel-h {
+  color: var(--amber); background: var(--amber-l);
+  border-bottom-color: #f0d9b0;
+}
+
 /* ── Dependence checker ─────────────────────────────────────────────────── */
 .dep-explain { font-size: .88rem; color: var(--ink); margin-bottom: 14px; }
 .dep-explain p { margin-bottom: 8px; line-height: 1.6; }
@@ -343,7 +366,7 @@ footer { text-align: center; padding: 16px; font-size: .76rem; color: var(--slat
 .dep-preview-box .arr-w { color: #fbbf24; border-color: #fbbf24; }  /* vàng = ghi */
 .dep-preview-box .arr-r { color: #86efac; border-color: #86efac; }  /* xanh lá = đọc */
 
-/* Tooltip hiện khi hover — dùng ::after với content từ title */
+/* Tooltip hiện khi hover - dùng ::after với content từ title */
 .dep-preview-box .arr-w::after,
 .dep-preview-box .arr-r::after {
   content: attr(title);

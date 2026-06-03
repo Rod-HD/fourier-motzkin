@@ -1,4 +1,4 @@
-/* Fourier-Motzkin LP Solver v2 — logic giao diện */
+/* Fourier-Motzkin LP Solver v2 - logic giao diện */
 "use strict";
 
 let N = 2;
@@ -96,9 +96,9 @@ function previewObj() {
     if (num === 0) return;
     const disp = raw.includes("/") ? raw : (num === Math.trunc(num) ? String(num) : raw);
     if (!t.length) {
-      t.push(num === 1 ? name : num === -1 ? "−" + name : disp + name);
+      t.push(num === 1 ? name : num === -1 ? "-" + name : disp + name);
     } else if (num < 0) {
-      t.push("− " + (num === -1 ? name : (raw.startsWith("-") ? raw.slice(1) : raw) + name));
+      t.push("- " + (num === -1 ? name : (raw.startsWith("-") ? raw.slice(1) : raw) + name));
     } else {
       t.push("+ " + (num === 1 ? name : disp + name));
     }
@@ -250,10 +250,10 @@ function renderResultCard(d) {
     });
     chips += `<div class="chip z"><span class="k">z*</span><span class="v">${esc(d.z.fraction)}</span><span class="d">≈ ${esc(d.z.decimal)}</span></div>`;
     card.innerHTML = `<div class="panel-b"><div class="alert ok"><span class="ic">✓</span>
-      <div><strong>Bài toán có nghiệm tối ưu</strong> — phương pháp ${d.method === "geometric" ? "hình học" : "đại số"}</div></div>
+      <div><strong>Bài toán có nghiệm tối ưu</strong> - phương pháp ${d.method === "geometric" ? "hình học" : "đại số"}</div></div>
       <div class="chips" style="margin-top:11px">${chips}</div></div>`;
   } else {
-    const msg = d.status === "unbounded" ? "Bài toán KHÔNG BỊ CHẶN — hàm mục tiêu tăng vô hạn." : "Bài toán VÔ NGHIỆM — miền khả thi rỗng.";
+    const msg = d.status === "unbounded" ? "Bài toán KHÔNG BỊ CHẶN - hàm mục tiêu tăng vô hạn." : "Bài toán VÔ NGHIỆM - miền khả thi rỗng.";
     card.innerHTML = `<div class="panel-b"><div class="alert err"><span class="ic">⚠️</span><div><strong>${esc(msg)}</strong></div></div></div>`;
   }
 }
@@ -418,7 +418,7 @@ function drawChart(chartData, d) {
     borderWidth: 2, pointRadius: 0,
   });
 
-  // đường ràng buộc — mỗi đường một màu, có nhãn
+  // đường ràng buộc - mỗi đường một màu, có nhãn
   lines.forEach((ln, i) => {
     if (Math.abs(ln.a) < 1e-12 && Math.abs(ln.b) < 1e-12) return;
     const pts = lineClip(ln.a, ln.b, ln.rhs, xMax, yMax);
@@ -663,7 +663,7 @@ function lineClip(a1, a2, b, xMax, yMax) {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   KIỂM TRA PHỤ THUỘC VÒNG LẶP — UI tổng quát
+   KIỂM TRA PHỤ THUỘC VÒNG LẶP - UI tổng quát
 ════════════════════════════════════════════════════════════════ */
 
 // Trạng thái hiện tại của form phụ thuộc
@@ -701,7 +701,7 @@ function depBuild(d, m) {
     <div class="dep-section-title">
       Hàm chỉ số GHI
       <span style="font-weight:400;color:var(--slate);font-size:.78rem;margin-left:6px">
-        — ô mảng được <strong style="color:#b45309">ghi</strong> ở mỗi lần lặp.
+        - ô mảng được <strong style="color:#b45309">ghi</strong> ở mỗi lần lặp.
         Mỗi hàng k là một chiều của mảng. Nhập hệ số nhân với từng biến đếm i và hằng số cộng thêm.
       </span>
     </div>
@@ -713,7 +713,7 @@ function depBuild(d, m) {
     <div class="dep-section-title">
       Hàm chỉ số ĐỌC
       <span style="font-weight:400;color:var(--slate);font-size:.78rem;margin-left:6px">
-        — ô mảng được <strong style="color:#15803d">đọc</strong> ở mỗi lần lặp.
+        - ô mảng được <strong style="color:#15803d">đọc</strong> ở mỗi lần lặp.
         Cùng định dạng với hàm chỉ số ghi.
       </span>
     </div>
@@ -802,7 +802,7 @@ function depUpdatePreview() {
   const wArrStr = wExpr.map(esc).join("][");
   const rArrStr = rExpr.map(esc).join("][");
 
-  // Mỗi dòng là một <div class="pline"> — đây là cách duy nhất để HTML xuống dòng đúng
+  // Mỗi dòng là một <div class="pline"> - đây là cách duy nhất để HTML xuống dòng đúng
   const line = (content, indent = 0) =>
     `<div class="pline">${"&nbsp;&nbsp;".repeat(indent)}${content}</div>`;
   const blank = () => `<div class="pline">&nbsp;</div>`;
@@ -827,7 +827,7 @@ function depUpdatePreview() {
     d
   );
 
-  // Dòng ĐỌC (xanh lá, hover tooltip) — trên dòng riêng
+  // Dòng ĐỌC (xanh lá, hover tooltip) - trên dòng riêng
   html += line(
     `<span class="cmt">...</span>&nbsp;` +
     `<span class="arr-r" title="ĐỌC: đọc giá trị từ ô A[${rArrStr}]">` +
@@ -843,7 +843,7 @@ function depUpdatePreview() {
   const iwLabels = Array.from({length: d}, (_, j) => `iw${j+1}`);
   const irLabels = Array.from({length: d}, (_, j) => `ir${j+1}`);
 
-  // Phương trình bằng nhau — mỗi chiều 1 dòng
+  // Phương trình bằng nhau - mỗi chiều 1 dòng
   for (let k = 0; k < m; k++) {
     const lhs = makeIdx(wCoeffs[k], wConsts[k], iwLabels);
     const rhs = makeIdx(rCoeffs[k], rConsts[k], irLabels);
@@ -853,7 +853,7 @@ function depUpdatePreview() {
 
   html += blank();
 
-  // Biên vòng lặp — iw và ir tách thành 2 dòng riêng cho mỗi vòng
+  // Biên vòng lặp - iw và ir tách thành 2 dòng riêng cho mỗi vòng
   for (let j = 0; j < d; j++) {
     const {L, U} = loops[j];
     const note = d > 1 ? `&nbsp;&nbsp;<span class="cmt"># vòng ${j+1}</span>` : "";
@@ -1010,7 +1010,7 @@ function renderDepResult(d, numVars) {
     verdict = `<div class="dep-verdict gcd">
       <span class="ic">✓</span>
       <div class="vbody">
-        <div class="vtitle">KHÔNG có phụ thuộc — loại bởi GCD test</div>
+        <div class="vtitle">KHÔNG có phụ thuộc - loại bởi GCD test</div>
         <div class="vdetail">
           Phương trình phụ thuộc <strong>không có nghiệm nguyên</strong>
           (điều kiện chia hết gcd không thỏa). Kết luận chính xác, không cần chạy FM.
@@ -1040,7 +1040,7 @@ function renderDepResult(d, numVars) {
       <div class="vbody">
         <div class="vtitle">CÓ THỂ có phụ thuộc</div>
         <div class="vdetail">
-          Hệ ràng buộc <strong>khả thi trên số thực</strong> — tồn tại cặp lần lặp
+          Hệ ràng buộc <strong>khả thi trên số thực</strong> - tồn tại cặp lần lặp
           có thể ghi và đọc trùng ô nhớ. Trình biên dịch phải giữ nguyên thứ tự.
         </div>
         ${witnessDetail}
@@ -1081,7 +1081,7 @@ function renderDepResult(d, numVars) {
         : `A[${rIdxs.map(e => subVals(e, w.ir)).join("][")}]`;
       exampleLine = `<li>Ví dụ: lần lặp <strong>ghi</strong> (${esc(iwStr)}) ghi vào
           <code>${esc(wCell)}</code>; lần lặp <strong>đọc</strong> (${esc(irStr)}) đọc từ
-          <code>${esc(rCell)}</code> — <strong>cùng một ô nhớ</strong>.</li>`;
+          <code>${esc(rCell)}</code> - <strong>cùng một ô nhớ</strong>.</li>`;
     }
     const isRealOnly = w && w.iw.some(v => v.includes("/"));
     meaning = `<div class="dep-meaning dep-meaning-warn">
@@ -1096,7 +1096,7 @@ function renderDepResult(d, numVars) {
         <li>Trình biên dịch <strong>phải giữ nguyên thứ tự</strong> thực thi.</li>
       </ul>
       ${isRealOnly ? `<p class="dep-note" style="margin-top:8px">
-        Nhân chứng là số phân số (không nguyên) — phụ thuộc thực sự trên số nguyên
+        Nhân chứng là số phân số (không nguyên) - phụ thuộc thực sự trên số nguyên
         cần kiểm tra thêm bằng Omega test. Kết luận hiện tại là bảo thủ (an toàn).
       </p>` : ""}
     </div>`;
@@ -1111,7 +1111,7 @@ function renderDepResult(d, numVars) {
   }).join("");
   const traceSection = trace ? `
     <details class="dep-explain-wrap" style="margin-top:10px">
-      <summary class="dep-explain-toggle">Xem chi tiết các bước khử Fourier–Motzkin ▾</summary>
+      <summary class="dep-explain-toggle">Xem chi tiết các bước khử Fourier-Motzkin ▾</summary>
       <div style="padding:10px 14px">${trace}</div>
     </details>` : "";
 

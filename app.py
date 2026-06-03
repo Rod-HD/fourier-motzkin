@@ -1,10 +1,10 @@
 """Ứng dụng web Flask cho bộ giải Fourier-Motzkin v2.
 
 Ba endpoint:
-  * ``GET  /``            — trang giao diện chính.
-  * ``POST /api/solve``   — giải LP (đại số hoặc hình học), trả JSON.
-  * ``POST /api/depend``  — kiểm tra phụ thuộc vòng lặp (ứng dụng compiler).
-  * ``POST /api/export``  — xuất file .txt giải trình.
+  * ``GET  /``            - trang giao diện chính.
+  * ``POST /api/solve``   - giải LP (đại số hoặc hình học), trả JSON.
+  * ``POST /api/depend``  - kiểm tra phụ thuộc vòng lặp (ứng dụng compiler).
+  * ``POST /api/export``  - xuất file .txt giải trình.
 """
 
 from __future__ import annotations

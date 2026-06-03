@@ -1,7 +1,6 @@
-# Bộ testcase — Fourier–Motzkin LP Solver (v2)
+# Bộ testcase — Fourier–Motzkin LP Solver
 
-File này liệt kê toàn bộ testcase trong `tests/cases.py` ở dạng dễ đọc, kèm
-**bản nhập TEXT** để dán thẳng vào ô nhập của giao diện (chế độ TEXT).
+File này liệt kê toàn bộ testcase trong `tests/cases.py`.
 
 Cách kiểm thủ công nhanh nhất:
 
@@ -9,9 +8,6 @@ Cách kiểm thủ công nhanh nhất:
 2. Đặt **số biến**, **kiểu mục tiêu (MAX/MIN)** và **hệ số hàm mục tiêu** theo từng case.
 3. Chuyển ô ràng buộc sang chế độ **TEXT**, dán khối ràng buộc tương ứng.
 4. Bấm **Giải** và đối chiếu với cột **Kỳ vọng**.
-
-> Lưu ý: ở chế độ TEXT, **bỏ tick** "tự thêm xᵢ ≥ 0" vì các điều kiện không âm
-> đã được viết sẵn trong khối ràng buộc của từng case.
 
 Hoặc chạy tự động toàn bộ:
 
@@ -189,97 +185,105 @@ parser đọc đúng hệ số (hoặc báo lỗi đúng chỗ).
 
 ## 3. Kiểm tra phụ thuộc vòng lặp (ứng dụng compiler)
 
-### 3.1. Vòng lặp này là gì? `A`, `iw`, `ir`, `a, c0, b, c1` là gì?
+### 3.1. Mô hình và cách nhập liệu
 
-Xét một vòng lặp duyệt mảng `A` (một dãy ô nhớ `A[0], A[1], A[2], ...`):
+Tab **"Ứng dụng"** trên giao diện dùng mô hình tổng quát: **d vòng lặp lồng nhau**, mảng **m chiều**.
 
 ```python
-for i in range(L, U+1):
-    A[a*i + c0] = ... A[b*i + c1] ...   # mỗi lần lặp: GHI vào A[a*i+c0], ĐỌC từ A[b*i+c1]
+for i1 in range(L1, U1+1):
+  for i2 in range(L2, U2+1):
+    ...
+      A[ f1(i), …, fm(i) ]  =  …         # GHI (write)
+      …  A[ g1(i), …, gm(i) ]  …         # ĐỌC (read)
+
+# fk(i) = ak1·i1 + … + akd·id + ck_w    (hàm chỉ số GHI chiều k)
+# gk(i) = bk1·i1 + … + bkd·id + ck_r    (hàm chỉ số ĐỌC chiều k)
 ```
 
-Giải nghĩa từng ký hiệu:
+**Cách nhập trên UI:**
 
-| Ký hiệu | Ý nghĩa |
+| Trường | Ý nghĩa |
 | --- | --- |
-| `A` | một **mảng** (dãy ô nhớ liên tiếp). `A[k]` là ô nhớ thứ `k`. |
-| `i` | **biến đếm** của vòng lặp, chạy từ `L` đến `U`. |
-| `a*i + c0` | **chỉ số ô được GHI** ở lần lặp `i` (biểu thức tuyến tính theo `i`). |
-| `b*i + c1` | **chỉ số ô được ĐỌC** ở lần lặp `i`. |
-| `a, b` | hệ số nhân với `i` (bước nhảy chỉ số). |
-| `c0, c1`| hằng số cộng thêm (độ dịch). |
-| `iw` | giá trị `i` ở **lần lặp ghi** (write). |
-| `ir` | giá trị `i` ở **lần lặp đọc** (read). |
+| **d** | Số vòng lặp lồng nhau |
+| **m** | Số chiều của mảng |
+| **Cận vòng lặp** | Mỗi vòng j nhập L và U (biến đếm `ij ∈ [L, U]`) |
+| **Hàm chỉ số GHI** | Bảng m hàng × (d cột hệ số + 1 cột hằng số). Hàng k = chiều k của mảng. |
+| **Hàm chỉ số ĐỌC** | Cùng định dạng với hàm GHI. |
 
-Ví dụ cụ thể: với `a=1, c0=0, b=1, c1=-1` thì vòng lặp là
+> **Quy trình 2 tầng:**
+> ① **GCD test** — điều kiện chia hết, chính xác trên số nguyên, rất rẻ.
+> Nếu không thỏa → chắc chắn không phụ thuộc, dừng ngay.
+> Nếu thỏa → ② **FM trên nới lỏng số thực** (bảo thủ: có thể báo thừa).
 
-```python
-for i in range(0, 11):
-    A[i] = A[i-1] + 1     # GHI A[i], ĐỌC A[i-1]
-```
+---
 
-### 3.2. "Phụ thuộc" nghĩa là gì? Vì sao cần kiểm tra?
+### 3.2. Bộ test case — 1 vòng, mảng 1 chiều (`d=1, m=1`)
 
-Trình biên dịch muốn **chạy song song** hoặc **đảo thứ tự** các lần lặp để tăng tốc.
-Việc đó chỉ **an toàn** nếu các lần lặp **không giẫm chân nhau** — tức không có
-lần lặp nào ĐỌC một ô mà lần lặp khác đã/đang GHI vào đúng ô đó.
+Nhập: **d = 1, m = 1**, Cận vòng 1: `L, U`, Hàm GHI hàng k=1: `[a, c0]`, Hàm ĐỌC hàng k=1: `[b, c1]`.
 
-Hai lần lặp `iw` (ghi) và `ir` (đọc) chạm **cùng một ô nhớ** khi chỉ số ghi bằng
-chỉ số đọc:
+| Case | Vòng lặp mô phỏng | write `[×i1, +c]` | read `[×i1, +c]` | L | U | Kỳ vọng |
+| --- | --- | --- | --- | --- | --- | --- |
+| DEP1 | `A[i] = A[i]` (tự phụ thuộc) | `[1, 0]` | `[1, 0]` | 0 | 10 | **Có** |
+| DEP2 | `A[i] = A[i-1]` (loop-carried) | `[1, 0]` | `[1, -1]` | 0 | 10 | **Có** |
+| DEP3 | `A[i] = A[i+1]` | `[1, 0]` | `[1, 1]` | 0 | 10 | **Có** |
+| DEP4 | `A[i]` vs `A[i+10]`, chạm đúng biên | `[1, 0]` | `[1, 10]` | 0 | 10 | **Có** |
+| DEP5 | `A[2i]` vs `A[i]` (hệ số khác nhau) | `[2, 0]` | `[1, 0]` | 0 | 10 | **Có** |
+| DEP6 | `A[i]` vs `A[-i]` (hệ số âm) | `[1, 0]` | `[-1, 0]` | 0 | 10 | **Có** |
+| DEP7 | `A[i]` vs `A[i+11]`, vượt biên | `[1, 0]` | `[1, 11]` | 0 | 10 | **Không** |
+| DEP8 | `A[i]` vs `A[i+100]`, vượt xa biên | `[1, 0]` | `[1, 100]` | 0 | 10 | **Không** |
+| DEP9 | `A[5]` vs `A[7]`, chỉ số hằng khác nhau | `[0, 5]` | `[0, 7]` | 0 | 10 | **Không** |
+| DEP10 | `A[i] = A[i-1]`, chỉ 1 lần lặp `[0,0]` | `[1, 0]` | `[1, -1]` | 0 | 0 | **Không** |
+| DEP11 | `A[2i]` vs `A[2i+1]`, GCD test loại ngay | `[2, 0]` | `[2, 1]` | 0 | 10 | **Không** |
 
-```
-a*iw + c0 = b*ir + c1,    với L ≤ iw ≤ U  và  L ≤ ir ≤ U
-```
+**Cột write/read** ghi theo định dạng bảng UI: `[hệ số × i1, + hằng số]`.
 
-Đây là một **hệ ràng buộc tuyến tính** theo `iw, ir`. Câu hỏi "có phụ thuộc không?"
-chính là "**hệ này có nghiệm (khả thi) không?**" — và đó là việc Fourier–Motzkin
-làm: khử biến để kiểm tra khả thi.
+---
 
-- Hệ **vô nghiệm** ⟹ không cặp `(iw, ir)` nào trùng ô ⟹ **KHÔNG phụ thuộc** ⟹ song song hóa an toàn.
-- Hệ **khả thi** ⟹ có thể trùng ô ⟹ **CÓ THỂ phụ thuộc** ⟹ phải giữ nguyên thứ tự.
+### 3.3. Bộ test case — 2 vòng lồng, mảng 2 chiều
 
-> Kiểm thử chạy trên **số thực** (nới lỏng): nếu vô nghiệm trên số thực thì chắc
-> chắn vô nghiệm trên số nguyên (kết luận an toàn). Nếu khả thi trên số thực thì
-> kết luận "có thể phụ thuộc" theo hướng **bảo thủ** — không bao giờ bỏ sót phụ
-> thuộc thật (xem DEP11).
+Nhấn nút **"2 vòng lồng"** hoặc **"2 chiều mảng"** trên UI để nạp sẵn.
 
-### 3.3. Cách thử trên giao diện
+#### DEP-2D1 — 2 vòng lồng, `A[i1][i2] = A[i1-1][i2+1]`
 
-Cuộn xuống khối **"Kiểm tra phụ thuộc vòng lặp"**, nhập `a, c0, b, c1, L, U` rồi
-bấm **Kiểm tra**.
+- **d = 2, m = 2**, Cận: vòng 1 `[0,5]`, vòng 2 `[0,5]`
+- Hàm GHI:
 
-### 3.4. Bộ test case
+  | Chiều k | × i1 | × i2 | + c |
+  | --- | --- | --- | --- |
+  | k=1 | 1 | 0 | 0 |
+  | k=2 | 0 | 1 | 0 |
 
-| Case | Vòng lặp (ý nghĩa) | a | c0 | b | c1 | L | U | Kỳ vọng |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| DEP1 | `A[i] = A[i]` (tự phụ thuộc) | 1 | 0 | 1 | 0 | 0 | 10 | **Có** |
-| DEP2 | `A[i] = A[i-1]` (mang qua vòng) | 1 | 0 | 1 | -1 | 0 | 10 | **Có** |
-| DEP3 | `A[i] = A[i+1]` | 1 | 0 | 1 | 1 | 0 | 10 | **Có** |
-| DEP4 | `A[i]` vs `A[i+10]`, biên `[0,10]` (chạm đúng biên) | 1 | 0 | 1 | 10 | 0 | 10 | **Có** |
-| DEP5 | `A[2i]` vs `A[i]` (hệ số khác nhau) | 2 | 0 | 1 | 0 | 0 | 10 | **Có** |
-| DEP6 | `A[i]` vs `A[-i]` (hệ số âm) | 1 | 0 | -1 | 0 | 0 | 10 | **Có** |
-| DEP7 | `A[i]` vs `A[i+11]`, biên `[0,10]` (vượt biên) | 1 | 0 | 1 | 11 | 0 | 10 | **Không** |
-| DEP8 | `A[i]` vs `A[i+100]` (vượt xa biên) | 1 | 0 | 1 | 100 | 0 | 10 | **Không** |
-| DEP9 | `A[5]` vs `A[7]` (chỉ số hằng khác nhau) | 0 | 5 | 0 | 7 | 0 | 10 | **Không** |
-| DEP10 | `A[i] = A[i-1]` nhưng chỉ 1 lần lặp `[0,0]` | 1 | 0 | 1 | -1 | 0 | 0 | **Không** |
-| DEP11 | `A[2i]` vs `A[2i+1]` (chẵn≠lẻ) — *giới hạn nới lỏng thực* | 2 | 0 | 2 | 1 | 0 | 10 | **Có** |
+- Hàm ĐỌC:
 
-**Giải thích vài ca tiêu biểu:**
+  | Chiều k | × i1 | × i2 | + c |
+  | --- | --- | --- | --- |
+  | k=1 | 1 | 0 | -1 |
+  | k=2 | 0 | 1 | 1 |
 
-- **DEP2** `A[i] = A[i-1]`: lần lặp `i` đọc kết quả lần lặp `i-1` vừa ghi → phụ
-  thuộc "mang qua vòng" (loop-carried), KHÔNG được song song hóa. Nghiệm minh
-  chứng: `iw=0, ir=1` (lần ghi i=0 tạo ra A[0], lần đọc i=1 đọc A[0]).
-- **DEP7/DEP8** `A[i+11]`, `A[i+100]`: chỉ số đọc luôn lớn hơn mọi chỉ số ghi
-  trong `[0,10]` → không bao giờ trùng → vô nghiệm → an toàn song song hóa.
-- **DEP9** `A[5]` vs `A[7]`: hai chỉ số hằng số (a=b=0), `5 ≠ 7` luôn đúng → hệ
-  cho `0 = 2`, vô nghiệm → không phụ thuộc.
-- **DEP10**: cùng công thức DEP2 nhưng vòng lặp chỉ chạy `i=0` (một lần) → không
-  có cặp `(iw, ir)` hợp lệ → không phụ thuộc.
-- **DEP11** `A[2i]` vs `A[2i+1]`: chỉ số chẵn không bao giờ bằng chỉ số lẻ trên
-  **số nguyên**, nên thực tế KHÔNG phụ thuộc. Nhưng nới lỏng **số thực** cho
-  nghiệm `iw=1/2` (khả thi) nên hệ thống kết luận "**có thể** có phụ thuộc". Đây
-  là điểm **bảo thủ** đã biết của kiểm thử bằng Fourier–Motzkin: thà báo thừa
-  (an toàn) còn hơn bỏ sót. Muốn loại ca này cần thêm kiểm tra GCD trên số nguyên.
+- Vòng lặp mô phỏng: `A[i1][i2] = ... A[i1-1][i2+1] ...`
+- **Kỳ vọng: Có phụ thuộc** — nhân chứng `iw=(0,1), ir=(1,0)`: lần ghi `(i1=0,i2=1)` ghi vào `A[0][1]`, lần đọc `(i1=1,i2=0)` đọc `A[1-1][0+1] = A[0][1]` — cùng ô.
+
+#### DEP-2D2 — 1 vòng, mảng 2 chiều, `A[i][2i] = A[i+1][2i-1]`
+
+- **d = 1, m = 2**, Cận: vòng 1 `[0,8]`
+- Hàm GHI:
+
+  | Chiều k | × i1 | + c |
+  | --- | --- | --- |
+  | k=1 | 1 | 0 |
+  | k=2 | 2 | 0 |
+
+- Hàm ĐỌC:
+
+  | Chiều k | × i1 | + c |
+  | --- | --- | --- |
+  | k=1 | 1 | 1 |
+  | k=2 | 2 | -1 |
+
+- Vòng lặp mô phỏng: `A[i][2i] = ... A[i+1][2i-1] ...`
+- **Kỳ vọng: Không có phụ thuộc** — GCD test loại ngay: chiều 2 yêu cầu
+  `2·iw - 2·ir = -1`, nhưng `gcd(2, 2) = 2` không chia hết `1` → vô nghiệm trên
+  số nguyên, `gcd_eliminated = True`.
 
 ---
 

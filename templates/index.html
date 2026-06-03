@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fourier–Motzkin LP Solver v2</title>
+<title>Fourier-Motzkin LP Solver v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -11,8 +11,8 @@
 
 <header class="top">
   <div class="wrap" style="padding-bottom:0">
-    <h1>Fourier–Motzkin LP Solver</h1>
-    <p>Giải quy hoạch tuyến tính bằng phép khử Fourier–Motzkin — số học hữu tỉ chính xác</p>
+    <h1>Fourier-Motzkin LP Solver</h1>
+    <p>Giải quy hoạch tuyến tính bằng phép khử Fourier-Motzkin - số học hữu tỉ chính xác</p>
     <span class="badge">PHIÊN BẢN 2 · trường Q · chứng chỉ Farkas</span>
   </div>
 </header>
@@ -81,7 +81,7 @@
       <div class="panel-b">
         <div class="method">
           <span class="lab">Chọn:</span>
-          <button id="mAlg" class="mbtn on" onclick="setMethod('algebraic')">Đại số (Fourier–Motzkin)</button>
+          <button id="mAlg" class="mbtn on" onclick="setMethod('algebraic')">Đại số (Fourier-Motzkin)</button>
           <button id="mGeo" class="mbtn" onclick="setMethod('geometric')">Hình học (n = 2)</button>
         </div>
       </div>
@@ -108,7 +108,12 @@
   </section>
 
   <!-- ══ ỨNG DỤNG: KIỂM TRA PHỤ THUỘC VÒNG LẶP ══ -->
-  <div class="panel" style="margin-top:20px" id="depPanel">
+  <div class="app-divider">
+    <span class="app-divider-tag">Ứng dụng thực tế</span>
+    <span class="app-divider-sub">Một bài toán khác giải được nhờ Fourier-Motzkin</span>
+  </div>
+
+  <div class="panel app-panel" id="depPanel">
     <div class="panel-h">Ứng dụng: kiểm tra phụ thuộc dữ liệu vòng lặp (Allen &amp; Kennedy)</div>
     <div class="panel-b">
 
@@ -119,7 +124,7 @@
             <strong>Bài toán thực tế:</strong> trình biên dịch muốn
             <strong>chạy song song</strong> các lần lặp để tăng tốc.
             Nhưng nếu lần lặp này <em>đọc</em> một ô mà lần lặp khác đang <em>ghi</em>
-            vào đúng ô đó thì kết quả sẽ sai — gọi là <strong>phụ thuộc dữ liệu</strong>.
+            vào đúng ô đó thì kết quả sẽ sai - gọi là <strong>phụ thuộc dữ liệu</strong>.
           </p>
 
           <div class="dep-loop-box" style="margin-bottom:10px">
@@ -137,8 +142,8 @@
             <strong>Cách kiểm tra:</strong> hai lần lặp <code>iw</code> (ghi) và <code>ir</code> (đọc)
             chạm cùng ô khi chỉ số ghi = chỉ số đọc, tức
             <code>a·iw + c0 = b·ir + c1</code> với cả hai trong biên <code>[L, U]</code>.
-            Đây là một <strong>hệ ràng buộc tuyến tính</strong> — dùng
-            <strong>Fourier–Motzkin</strong> kiểm tra xem hệ có nghiệm không.
+            Đây là một <strong>hệ ràng buộc tuyến tính</strong> - dùng
+            <strong>Fourier-Motzkin</strong> kiểm tra xem hệ có nghiệm không.
           </p>
 
           <div class="dep-loop-box">
@@ -155,7 +160,7 @@
 
           <p class="dep-note" style="margin-top:10px">
             <strong>Quy trình 2 tầng:</strong>
-            <strong>① GCD test</strong> — kiểm tra điều kiện chia hết, chính xác trên số nguyên, rất rẻ.
+            <strong>① GCD test</strong> - kiểm tra điều kiện chia hết, chính xác trên số nguyên, rất rẻ.
             Nếu không thỏa → chắc chắn không phụ thuộc, dừng ngay.
             Nếu thỏa → <strong>② FM trên nới lỏng số thực</strong> (bảo thủ: có thể báo thừa).
           </p>
@@ -192,7 +197,7 @@
     </div>
   </div>
 
-  <footer>Fourier–Motzkin LP Solver · phiên bản 2 · Python + Flask + Chart.js</footer>
+  <footer>Fourier-Motzkin LP Solver · phiên bản 2 · Python + Flask + Chart.js</footer>
   <div class="toast" id="toast">✓ Đã sao chép</div>
 </div>
 
